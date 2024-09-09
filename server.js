@@ -9,7 +9,7 @@ const port = process.env.PORT || 3000;
 
 const Db = require('./db/db');
 const UserRoute = require('./routes/userRouter');
-const QuestionRoute = require('./Q&A router/question');
+
 const AdminRoute = require('./routes/AdminRouter');
 
 // Middleware to parse JSON request bodies
