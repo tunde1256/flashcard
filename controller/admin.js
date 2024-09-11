@@ -555,3 +555,78 @@ exports.deleteAnswerForQuestion = async (req, res) => {
         return res.status(500).json({ message: 'Server error', error });
     }
 };
+exports.resetPassword = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Find admin by id
+        const admin = await Admin.findById({email});
+        if (!admin) {
+            logger.warn('Reset password attempt failed: Admin not found', { id });
+            return res.status(404).json({ message: 'Admin not found' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        const updatedAdmin = await Admin.findByIdAndUpdate(
+            id, 
+            { password: hashedPassword }, 
+            { new: true }
+        );
+
+        if (!updatedAdmin) {
+            logger.warn('Reset password attempt failed: Admin not found', { id });
+            return res.status(404).json({ message: 'Admin not found' });
+        }
+
+        logger.info('Password reset successful', { id });
+        res.json({ message: 'Password reset successful' });
+
+    }
+    catch (e) {
+        logger.error('Error resetting password:', e);
+        res.status(500).json({ message: e.message });
+    }
+};
+
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email, newPassword, confirmPassword } = req.body;
+
+        // Check if the admin exists
+        const admin = await Admin.findOne({ email });
+        if (!admin) {
+            logger.warn('Forgot password attempt failed: Admin not found', { email });
+            return res.status(404).json({ message: 'Admin not found' });
+        }
+
+        // Check if passwords match
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ message: 'Passwords do not match' });
+        }
+
+        // Hash the new password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update the admin's password
+        const updatedAdmin = await Admin.findByIdAndUpdate(
+            admin._id, 
+            { password: hashedPassword }, 
+            { new: true }
+        );
+
+        if (!updatedAdmin) {
+            logger.warn('Forgot password attempt failed: Admin not found during update', { email });
+            return res.status(404).json({ message: 'Admin not found during update' });
+        }
+
+        logger.info('Password reset successful', { email });
+        res.json({ message: 'Password reset successful' });
+    } catch (e) {
+        logger.error('Error during password reset:', e);
+        res.status(500).json({ message: e.message });
+    }
+};
+

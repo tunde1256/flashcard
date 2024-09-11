@@ -17,6 +17,9 @@ router.delete('/delete-answer', userController.deleteAnswer); // Delete an answe
 router.post('/create-question-answer', userController.createQuestionAndAnswer); // Create question and answer together
 router.get('/questions/:questionId', userController.getQuestionAndAnswers); // Get all answers for a question with pagination
 router.get('/answers', userController.getAllAnswers); // Get all answers for
+router.post('/forgot-Password', userController.forgotPassword); // Forgot password)
+router.post('/reset-password', userController.resetPassword); // Reset password using token
+
 /**
  * @swagger
  * /user/register:
@@ -401,3 +404,4 @@ router.get('/answers', userController.getAllAnswers); // Get all answers for
 
 
 module.exports = router;
+

@@ -22,7 +22,8 @@ router.get('/questions/:questionId/answers', AdminRoute.getAllAnswersForQuestion
 router.get('/questions/:questionId/answers/:answerId', AdminRoute.getAnswerByIdForQuestion);
 router.put('/questions/:questionId/answers/:answerId', AdminRoute.updateAnswerForQuestion);
 router.delete('/questions/:questionId/answers/:answerId', AdminRoute.deleteAnswerForQuestion);
-
+router.post('/forgotPassword', AdminRoute.forgotPassword);
+router.put('/resetPassword/:token', AdminRoute.resetPassword);
 /**
  * @swagger
  * /admin/register:
