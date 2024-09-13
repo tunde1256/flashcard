@@ -115,6 +115,8 @@ exports.createUser = async (req, res) => {
         logger.info('User created successfully', { userId: newUser._id });
         return res.status(201).json({
             message: 'User created successfully',
+            username: newUser.username,
+            email: newUser.email,
             token
         });
 
