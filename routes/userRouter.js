@@ -4,6 +4,7 @@ const userController = require('../controller/user');
 
 // User routes
 router.post('/register', userController.createUser); // User registration
+
 router.post('/login', userController.loginUser); // User login
 router.get('/users', userController.getUsers); // Get all users with pagination
 router.put('/users/:userId', userController.updateUser); // Update user details
@@ -24,6 +25,7 @@ router.get('/category/:category', userController.getQuestionsAndAnswersByCategor
 router.get('/categories/:userId', userController.getAllCategories); // Search for questions by title, description, or answer text
 router.get('/quiz-question/:id/:category', userController.getQuizQuestions)
 router.post('/quiz-answer', userController.submitTypedAnswers)
+router.get('/getAllQA', userController.getAllQuestionsAndAnswers)
 /**
  * @swagger
  * /user/register:
@@ -408,4 +410,5 @@ router.post('/quiz-answer', userController.submitTypedAnswers)
 
 
 module.exports = router;
+
 
