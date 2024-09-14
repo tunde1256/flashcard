@@ -437,11 +437,50 @@ exports.deleteQuestionAndAnswer = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 }
+exports.getAllQuestionsAndAnswers = async (req, res) => {
+    try {
+        // Extract the optional filtering parameters from the request body
+        const { userId, category, question, answer } = req.body;
+
+        // Build a query object with the filters if they exist
+        const query = {};
+
+        if (userId) {
+            query.createdBy = userId; // Filter by userId (createdBy in both Question and Answer)
+        }
+        if (category) {
+            query.category = category; // Filter by category
+        }
+        if (question) {
+            query.question = { $regex: question, $options: 'i' }; // Case-insensitive search for question text
+        }
+        if (answer) {
+            query['answers.answerText'] = { $regex: answer, $options: 'i' }; // Case-insensitive search for answer text
+        }
+
+        // Fetch all questions and their associated answers based on the filters
+        const questions = await Question.find(query).populate({
+            path: 'answers', // Assuming answers are populated using a reference in your Question model
+            match: { answerText: answer ? { $regex: answer, $options: 'i' } : {} }
+        });
+
+        if (!questions || questions.length === 0) {
+            return res.status(404).json({ message: 'No questions and answers found' });
+        }
+
+        logger.info('Questions and answers retrieved successfully', { query });
+        return res.status(200).json({ questions });
+
+    } catch (error) {
+        logger.error('Error retrieving all questions and answers', { error });
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
 
 // get category
 exports.getQuestionsAndAnswersByCategory = async (req, res) => {
     try {
-        const { category } = req.params;
+        const { category, userId } = req.params; // Extract category and userId from the URL parameters
 
         // Validate input
         if (!category) {
@@ -449,32 +488,50 @@ exports.getQuestionsAndAnswersByCategory = async (req, res) => {
             return res.status(400).json({ message: 'Category is required' });
         }
 
-        // Find questions by category
-        const questions = await Question.find({ category });
+        if (!userId) {
+            logger.warn('User ID search failed: Missing userId parameter');
+            return res.status(400).json({ message: 'User ID is required' });
+        }
+
+        // Build the query object to filter by category and userId
+        const query = {
+            category,
+            createdBy: userId  // Assuming `createdBy` field stores userId
+        };
+
+        // Find questions by category and userId
+        const questions = await Question.find(query);
 
         if (questions.length === 0) {
-            return res.status(404).json({ message: 'No questions found for this category' });
+            return res.status(404).json({ message: 'No questions found for this category and user' });
         }
 
         // Find answers for the found questions
         const questionIds = questions.map(question => question._id);
         const answers = await Answer.find({ questionId: { $in: questionIds } });
 
-        logger.info('Questions and answers retrieved successfully', { category, questionCount: questions.length, answerCount: answers.length });
-        
-        // Return response including category, questions, and answers
+        logger.info('Questions and answers retrieved successfully', {
+            category,
+            userId,
+            questionCount: questions.length,
+            answerCount: answers.length
+        });
+
+        // Return response including category, userId, questions, and answers
         return res.status(200).json({
             message: 'Questions and answers retrieved successfully',
-            category,    // Include category in the response
+            category,
+            userId,
             questions,   // Include questions
             answers      // Include answers
         });
 
     } catch (error) {
-        logger.error('Error retrieving questions and answers by category', { error });
+        logger.error('Error retrieving questions and answers by category and user', { error });
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
 
 
 // get all questions and answers by category
