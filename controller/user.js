@@ -316,9 +316,9 @@ exports.createQuestionAndAnswer = async (req, res) => {
         const { userId, questionText, answerText, category } = req.body;
 
         // Validate input
-        if (!userId || !questionText || !answerText  || !category) {
-            logger.warn('Question and answer creation failed: Missing required fields', { userId });
-            return res.status(400).json({ message: 'User ID, title, description, question text, answer text, createdBy, and category are required' });
+        if (!userId || !questionText || !answerText || !category) {
+            logger.warn('Question and answer creation failed: Missing required fields', { userId, questionText, answerText, category });
+            return res.status(400).json({ message: 'User ID, question text, answer text, and category are required' });
         }
 
         // Check if the user exists
@@ -331,6 +331,7 @@ exports.createQuestionAndAnswer = async (req, res) => {
         // Create and save the question
         const newQuestion = new Question({
             question: questionText,
+            createdBy: userId,
             category // Include category
         });
         await newQuestion.save();
@@ -338,10 +339,56 @@ exports.createQuestionAndAnswer = async (req, res) => {
         // Create and save the answer
         const newAnswer = new Answer({
             questionId: newQuestion._id,
-            userId,
             answerText,
-            createdBy, // Ensure this field is included
+            createdBy: userId,
             category // Include category
+        });
+        await newAnswer.save();
+
+        logger.info('Question and answer created successfully', { userId, questionId: newQuestion._id, answerId: newAnswer._id });
+        return res.status(201).json({
+            message: 'Question and answer created successfully',
+            question: newQuestion,
+            answer: newAnswer
+        });
+
+    } catch (error) {
+        logger.error('Error creating question and answer', { error });
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+// POST /api/user/create-question-answer
+exports.createQuestionAndAnswer2 = async (req, res) => {
+    try {
+        const { userId, questionText, answerText, category } = req.body;
+
+        // Validate input
+        if (!userId || !questionText || !answerText || !category) {
+            logger.warn('Question and answer creation failed: Missing required fields', { userId, questionText, answerText, category });
+            return res.status(400).json({ message: 'User ID, question text, answer text, and category are required' });
+        }
+
+        // Check if the user exists
+        const user = await User.findById(userId);
+        if (!user) {
+            logger.warn('Question and answer creation failed: User not found', { userId });
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Create and save the question
+        const newQuestion = new Question({
+            question: questionText,
+            createdBy: userId,
+            category
+        });
+        await newQuestion.save();
+
+        // Create and save the answer
+        const newAnswer = new Answer({
+            questionId: newQuestion._id,
+            answerText,
+            createdBy: userId,
+            category
         });
         await newAnswer.save();
 
@@ -433,7 +480,7 @@ exports.getQuestionsAndAnswersByCategory = async (req, res) => {
 // get all questions and answers by category
 exports.getAllCategories = async (req, res) => {
     try {
-        const { userId } = req.query; // Assuming the user sends the userId in the query parameters
+        const { userId } = req.params; // userId from query parameters
 
         if (!userId) {
             return res.status(400).json({ message: 'User ID is required' });
@@ -565,76 +612,6 @@ exports.getAllQuestionsAndAnswersByCategory = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 }
-exports.resetPassword = async (req, res) => {
-    try {
-        const { email, newPassword, confirmPassword } = req.body;
-
-        if (!email || !newPassword || !confirmPassword) {
-            return res.status(400).json({ message: 'Email, new password, and confirm password are required' });
-        }
-
-        if (newPassword !== confirmPassword) {
-            return res.status(400).json({ message: 'Passwords do not match' });
-        }
-
-        // Find user by email
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        // Hash the new password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-        // Update user's password
-        user.password = hashedPassword;
-        await user.save();
-
-        logger.info('Password reset successfully', { userId: user._id });
-        return res.status(200).json({ message: 'Password reset successfully' });
-
-    } catch (error) {
-        logger.error('Error during password reset:', error);
-        return res.status(500).json({ message: 'Server error' });
-    }
-};
-exports.forgotPassword = async (req, res) => {
-    try {
-        const { email, newPassword, confirmPassword } = req.body;
-
-        // Validate input
-        if (!email || !newPassword || !confirmPassword) {
-            return res.status(400).json({ message: 'Email, new password, and confirm password are required' });
-        }
-
-        // Check if passwords match
-        if (newPassword !== confirmPassword) {
-            return res.status(400).json({ message: 'Passwords do not match' });
-        }
-
-        // Find user by email
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ message: 'User with this email does not exist' });
-        }
-
-        // Hash new password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-        // Update the user's password
-        user.password = hashedPassword;
-        await user.save();
-
-        logger.info('Password reset successfully for user', { userId: user._id });
-        return res.status(200).json({ message: 'Password has been reset successfully' });
-
-    } catch (error) {
-        logger.error('Error during password reset', error);
-        return res.status(500).json({ message: 'Internal server error' });
-    }
-};
 
 
 // Get all questions and answers for a specific user
@@ -788,3 +765,84 @@ exports.updateUser = async(req, res, next) => {
             return res.status(500).json({message: 'Server error'});
         }
     }
+    exports.getQuizQuestions = async (req, res) => {
+        try {
+            const { userId, category } = req.params;
+    
+            if (!userId) {
+                return res.status(400).json({ message: 'User ID is required' });
+            }
+    
+            // Fetch questions by category
+            const questions = await Question.find({ category }).limit(10); // Adjust limit as needed
+    
+            if (questions.length === 0) {
+                return res.status(404).json({ message: 'No questions available in this category' });
+            }
+    
+            res.status(200).json({
+                message: 'Quiz questions retrieved successfully',
+                questions
+            });
+        } catch (error) {
+            console.error('Error fetching quiz questions:', error);
+            res.status(500).json({ message: 'Server error' });
+        }
+    };
+    exports.submitTypedAnswers = async (req, res) => {
+        try {
+            const { userId, answers } = req.body;
+    
+            if (!userId || !answers || !Array.isArray(answers)) {
+                return res.status(400).json({ message: 'User ID and answers are required' });
+            }
+    
+            let correctCount = 0;
+            const results = [];
+    
+            for (const answer of answers) {
+                const { questionId, userAnswer } = answer;
+    
+                // Find the question
+                const question = await Question.findById(questionId);
+                if (!question) {
+                    results.push({ questionId, correct: false, error: 'Question not found' });
+                    continue;
+                }
+    
+                // Check if the user's answer is correct
+                const isCorrect = question.correctAnswer.trim().toLowerCase() === userAnswer.trim().toLowerCase();
+    
+                if (isCorrect) correctCount++;
+    
+                // Save user's answer
+                const newAnswer = new Answer({
+                    userId,
+                    questionId,
+                    userAnswer,
+                    isCorrect
+                });
+    
+                await newAnswer.save();
+    
+                results.push({
+                    questionId,
+                    correctAnswer: question.correctAnswer,
+                    userAnswer,
+                    correct: isCorrect
+                });
+            }
+    
+            res.status(200).json({
+                message: 'Quiz results submitted successfully',
+                results,
+                correctCount,
+                totalQuestions: answers.length
+            });
+    
+        } catch (error) {
+            console.error('Error submitting quiz answers:', error);
+            res.status(500).json({ message: 'Server error' });
+        }
+    };
+    

@@ -14,14 +14,16 @@ router.post('/ask-question', userController.askQuestion); // Ask a question
 router.post('/answer-question', userController.answerQuestion); // Answer a question
 router.put('/update-answer', userController.updateAnswer); // Update an answer
 router.delete('/delete-answer', userController.deleteAnswer); // Delete an answer
-router.post('/create-question-answer', userController.createQuestionAndAnswer); // Create question and answer together
+router.post('/create-question-answer', userController.createQuestionAndAnswer)
+router.post('/createflashcard', userController.createQuestionAndAnswer2); // Create question and answer together
 router.get('/questions/:questionId', userController.getQuestionAndAnswers); // Get all answers for a question with pagination
 router.get('/answers', userController.getAllAnswers); // Get all answers for
 router.post('/forgot-Password', userController.forgotPassword); // Forgot password)
 router.post('/reset-password', userController.resetPassword); // Reset password using token
 router.get('/category/:category', userController.getQuestionsAndAnswersByCategory); //
-router.get('/categories', userController.getAllCategories); // Search for questions by title, description, or answer text
-
+router.get('/categories/:userId', userController.getAllCategories); // Search for questions by title, description, or answer text
+router.get('/quiz-question/:id/:category', userController.getQuizQuestions)
+router.post('/quiz-answer', userController.submitTypedAnswers)
 /**
  * @swagger
  * /user/register:
