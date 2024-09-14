@@ -2,32 +2,28 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const questionSchema = new Schema({
-    title: {
-        type: String,
-       
-    },
-    description: {
-        type: String,
-      
-    },
     question: {
         type: String,
-        required: true,
+        required: true
     },
     createdBy: {
-        type: Schema.Types.ObjectId, 
-        ref: 'User', 
-     
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    category: {
+        type: String,
+        required: true
     },
     createdAt: {
         type: Date,
         default: Date.now
     },
-    category: {
-        type: String,  // You can adjust this if you want to reference another collection (e.g., categories)
-       
-    }
+    answers: [{  // This field will store references to Answer documents
+        type: Schema.Types.ObjectId,
+        ref: 'Answer'
+    }]
 });
 
-const Question = mongoose.model('Question', questionSchema);
+const Question = mongoose.models.Question || mongoose.model('Question', questionSchema);
 module.exports = Question;
