@@ -316,9 +316,9 @@ exports.createQuestionAndAnswer = async (req, res) => {
         const { userId, questionText, answerText, category } = req.body;
 
         // Validate input
-        if (!userId || !questionText || !answerText  || !category) {
-            logger.warn('Question and answer creation failed: Missing required fields', { userId });
-            return res.status(400).json({ message: 'User ID, title, description, question text, answer text, createdBy, and category are required' });
+        if (!userId || !questionText || !answerText || !category) {
+            logger.warn('Question and answer creation failed: Missing required fields', { userId, questionText, answerText, category });
+            return res.status(400).json({ message: 'User ID, question text, answer text, and category are required' });
         }
 
         // Check if the user exists
@@ -331,6 +331,7 @@ exports.createQuestionAndAnswer = async (req, res) => {
         // Create and save the question
         const newQuestion = new Question({
             question: questionText,
+            createdBy: userId,
             category // Include category
         });
         await newQuestion.save();
@@ -338,9 +339,8 @@ exports.createQuestionAndAnswer = async (req, res) => {
         // Create and save the answer
         const newAnswer = new Answer({
             questionId: newQuestion._id,
-            userId,
             answerText,
-            createdBy, // Ensure this field is included
+            createdBy: userId,
             category // Include category
         });
         await newAnswer.save();
@@ -357,7 +357,6 @@ exports.createQuestionAndAnswer = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
-
 exports.deleteQuestionAndAnswer = async (req, res) => {
     try {
         const { userId, questionId, answerId } = req.body;
@@ -565,76 +564,6 @@ exports.getAllQuestionsAndAnswersByCategory = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 }
-// exports.resetPassword = async (req, res) => {
-//     try {
-//         const { email, newPassword, confirmPassword } = req.body;
-
-//         if (!email || !newPassword || !confirmPassword) {
-//             return res.status(400).json({ message: 'Email, new password, and confirm password are required' });
-//         }
-
-//         if (newPassword !== confirmPassword) {
-//             return res.status(400).json({ message: 'Passwords do not match' });
-//         }
-
-//         // Find user by email
-//         const user = await User.findOne({ email });
-//         if (!user) {
-//             return res.status(404).json({ message: 'User not found' });
-//         }
-
-//         // Hash the new password
-//         const salt = await bcrypt.genSalt(10);
-//         const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-//         // Update user's password
-//         user.password = hashedPassword;
-//         await user.save();
-
-//         logger.info('Password reset successfully', { userId: user._id });
-//         return res.status(200).json({ message: 'Password reset successfully' });
-
-//     } catch (error) {
-//         logger.error('Error during password reset:', error);
-//         return res.status(500).json({ message: 'Server error' });
-//     }
-// };
-// exports.forgotPassword = async (req, res) => {
-//     try {
-//         const { email, newPassword, confirmPassword } = req.body;
-
-//         // Validate input
-//         if (!email || !newPassword || !confirmPassword) {
-//             return res.status(400).json({ message: 'Email, new password, and confirm password are required' });
-//         }
-
-//         // Check if passwords match
-//         if (newPassword !== confirmPassword) {
-//             return res.status(400).json({ message: 'Passwords do not match' });
-//         }
-
-//         // Find user by email
-//         const user = await User.findOne({ email });
-//         if (!user) {
-//             return res.status(404).json({ message: 'User with this email does not exist' });
-//         }
-
-//         // Hash new password
-//         const salt = await bcrypt.genSalt(10);
-//         const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-//         // Update the user's password
-//         user.password = hashedPassword;
-//         await user.save();
-
-//         logger.info('Password reset successfully for user', { userId: user._id });
-//         return res.status(200).json({ message: 'Password has been reset successfully' });
-
-//     } catch (error) {
-//         logger.error('Error during password reset', error);
-//         return res.status(500).json({ message: 'Internal server error' });
-//     }
-// };
 
 
 // Get all questions and answers for a specific user
