@@ -30,7 +30,7 @@ const Schema = mongoose.Schema;
 const answerSchema = new Schema({
     answerText: {
         type: String,
-        required: true
+        
     },
     questionId: {
         type: Schema.Types.ObjectId,
@@ -40,11 +40,14 @@ const answerSchema = new Schema({
     createdBy: {
         type: Schema.Types.ObjectId,
         ref: 'User',
-        required: true
+      
     },
     createdAt: {
         type: Date,
         default: Date.now
+    },category: {
+        type: String,  // You can adjust this if you want to reference another collection (e.g., categories)
+        
     }
 });
 

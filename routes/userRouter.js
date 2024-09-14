@@ -19,6 +19,8 @@ router.get('/questions/:questionId', userController.getQuestionAndAnswers); // G
 router.get('/answers', userController.getAllAnswers); // Get all answers for
 router.post('/forgot-Password', userController.forgotPassword); // Forgot password)
 router.post('/reset-password', userController.resetPassword); // Reset password using token
+router.get('/category/:category', userController.getQuestionsAndAnswersByCategory); //
+router.get('/categories', userController.getAllCategories); // Search for questions by title, description, or answer text
 
 /**
  * @swagger
