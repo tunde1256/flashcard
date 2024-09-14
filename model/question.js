@@ -25,7 +25,7 @@ const questionSchema = new Schema({
     },
     category: {
         type: String,  // You can adjust this if you want to reference another collection (e.g., categories)
-        required: true
+       
     }
 });
 
