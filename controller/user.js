@@ -439,43 +439,46 @@ exports.deleteQuestionAndAnswer = async (req, res) => {
 }
 exports.getAllQuestionsAndAnswers = async (req, res) => {
     try {
-        // Extract the optional filtering parameters from the request body
-        const { userId, category, question, answer } = req.body;
+        // Extract userId and category from request body (or params if required)
+        const { userId, category } = req.body;
 
-        // Build a query object with the filters if they exist
-        const query = {};
-
-        if (userId) {
-            query.createdBy = userId; // Filter by userId (createdBy in both Question and Answer)
+        // Validate input
+        if (!userId) {
+            logger.warn('Question and answer retrieval failed: Missing userId');
+            return res.status(400).json({ message: 'User ID is required' });
         }
+
+        // Build a query object to filter by userId and category
+        const query = { createdBy: userId }; // Ensure only questions created by this user are fetched
         if (category) {
-            query.category = category; // Filter by category
-        }
-        if (question) {
-            query.question = { $regex: question, $options: 'i' }; // Case-insensitive search for question text
-        }
-        if (answer) {
-            query['answers.answerText'] = { $regex: answer, $options: 'i' }; // Case-insensitive search for answer text
+            query.category = category; // Optionally filter by category if provided
         }
 
-        // Fetch all questions and their associated answers based on the filters
+        logger.info('Querying questions with filters', { query });
+
+        // Find questions by the user and optionally by category
         const questions = await Question.find(query).populate({
-            path: 'answers', // Assuming answers are populated using a reference in your Question model
-            match: { answerText: answer ? { $regex: answer, $options: 'i' } : {} }
+            path: 'answers',
+            match: { createdBy: userId }, // Ensure only answers created by this user are included
         });
 
+        // Check if any questions and answers were found
         if (!questions || questions.length === 0) {
-            return res.status(404).json({ message: 'No questions and answers found' });
+            logger.warn('No questions and answers found for this user', { userId, category });
+            return res.status(404).json({ message: 'No questions and answers found for this user' });
         }
 
-        logger.info('Questions and answers retrieved successfully', { query });
+        logger.info('Questions and answers retrieved successfully', { userId, category, questionCount: questions.length });
         return res.status(200).json({ questions });
 
     } catch (error) {
-        logger.error('Error retrieving all questions and answers', { error });
-        return res.status(500).json({ message: 'Server error' });
+        // Log the stack trace for detailed debugging
+        logger.error('Error retrieving questions and answers', { error: error.message, stack: error.stack });
+        return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
+
 
 // get category
 exports.getQuestionsAndAnswersByCategory = async (req, res) => {
