@@ -34,6 +34,9 @@ exports.loginUser = async (req, res) => {
         // Fetch all questions for the logged-in user
         const questions = await Question.find({ createdBy: user._id });
 
+        // Fetch all answers for the logged-in user
+        const answers = await Answer.find({ userId: user._id });
+
         // Check if a provided question matches any stored question
         let matchedAnswer = 'No matching answer found';
         if (question) {
@@ -54,7 +57,7 @@ exports.loginUser = async (req, res) => {
         // Send notifications to inactive users
         await broadcastInactiveUsers();
 
-        // Return user details along with their questions and the matched answer if queried
+        // Return user details along with their questions and answers
         logger.info('Login successful', { userId: user._id, token });
         return res.status(200).json({
             message: 'Login successful',
@@ -66,6 +69,7 @@ exports.loginUser = async (req, res) => {
                 lastLogin: user.lastLogin // Include lastLogin in the response
             },
             questions,
+            answers, // Include answers in the response
             matchedAnswer
         });
 
@@ -74,6 +78,7 @@ exports.loginUser = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
 // User registration
 exports.createUser = async (req, res) => {
     try {
