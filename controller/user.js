@@ -62,7 +62,8 @@ exports.loginUser = async (req, res) => {
                 id: user._id,
                 email: user.email,
                 name: user.username, // Adjust this if needed
-                token
+                token,
+                lastLogin: user.lastLogin // Include lastLogin in the response
             },
             questions,
             matchedAnswer
