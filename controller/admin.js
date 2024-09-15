@@ -4,6 +4,9 @@ const Admin = require('../model/admin');
 const Question = require('../model/question');
 const Answer = require('../model/Answer');
 const logger = require('../logger'); // Adjust the path as necessary
+const Notification = require('../model/notification');
+const User = require('../model/users');
+const mongoose = require('mongoose');
 
 // Create a new admin
 exports.createAdmin = async (req, res) => {
@@ -589,6 +592,111 @@ exports.resetPassword = async (req, res) => {
         res.status(500).json({ message: e.message });
     }
 };
+exports.broadcastInactiveUsers = async () => {
+    try {
+        // Calculate the date and time from two days ago
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+        console.log('Calculating inactive users before:', twoDaysAgo);
+
+        // Find inactive users
+        const inactiveUsers = await User.find({ lastLogin: { $lt: twoDaysAgo } });
+        console.log('Inactive users found:', inactiveUsers);
+
+        if (inactiveUsers.length === 0) {
+            console.log('No inactive users found for broadcast');
+            return; // Exit if no inactive users
+        }
+
+        // Send notifications to each inactive user
+        for (const user of inactiveUsers) {
+            console.log(`Sending notification to user ${user._id}`);
+            const notification = new Notification({
+                message: 'We miss you! Please log back into the app.',
+                userId: user._id
+            });
+            await notification.save(); // Ensure each notification is saved before proceeding
+        }
+
+        console.log(`Broadcast sent to ${inactiveUsers.length} inactive users`);
+    } catch (error) {
+        console.error('Error broadcasting to inactive users', error);
+    }
+};
+
+
+
+exports.getInactiveUsers = async (req, res) => {
+    try {
+        // Extract userId from URL parameters
+        const { userId } = req.params;
+
+        // Log the incoming request
+        console.log('Request received for getInactiveUsers with userId:', userId);
+
+        // Validate the userId (optional, depending on your requirements)
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Invalid user ID' });
+        }
+
+        // Calculate the date two days ago
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+        console.log('Calculating inactive users before:', twoDaysAgo);
+
+        // Find inactive users based on lastLogin date and userId
+        const inactiveUsers = await User.find({
+            lastLogin: { $lt: twoDaysAgo },
+            _id: userId
+        }).exec();
+
+        // Log the result of the query
+        console.log('Inactive users found:', inactiveUsers);
+
+        if (inactiveUsers.length === 0) {
+            return res.status(200).json({ message: 'No inactive users found' });
+        }
+
+        res.status(200).json({
+            message: 'Inactive users retrieved successfully',
+            inactiveUsers
+        });
+    } catch (error) {
+        // Log the full error object
+        console.error('Error retrieving inactive users:', error);
+        
+        // Check if the error has more detailed information
+        if (error instanceof mongoose.Error.CastError) {
+            console.error('CastError details:', error.value, error.kind);
+        }
+        
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+
+
+exports.markNotificationAsRead = async (req, res) => {
+    const { notificationId } = req.params;
+
+    try {
+        const notification = await Notification.findById(notificationId);
+        if (!notification) {
+            return res.status(404).json({ message: 'Notification not found' });
+        }
+
+        notification.read = true;
+        await notification.save();
+
+        return res.status(200).json({ message: 'Notification marked as read' });
+    } catch (error) {
+        logger.error('Error marking notification as read', { error });
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
 
 exports.forgotPassword = async (req, res) => {
     try {
@@ -629,4 +737,52 @@ exports.forgotPassword = async (req, res) => {
         res.status(500).json({ message: e.message });
     }
 };
+
+exports.getInactiveUsers = async (req, res) => {
+    try {
+        console.log('Received request for inactive users');
+        
+        const thirtyMinutesAgo = new Date();
+        thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+
+        console.log('Calculating inactive users before:', thirtyMinutesAgo);
+
+        const inactiveUsers = await User.find({ lastLogin: { $lt: thirtyMinutesAgo } });
+
+        console.log('Inactive users found:', inactiveUsers);
+
+        if (inactiveUsers.length === 0) {
+            return res.status(200).json({ message: 'No inactive users found' });
+        }
+
+        res.status(200).json({
+            message: 'Inactive users retrieved successfully',
+            inactiveUsers
+        });
+    } catch (error) {
+        console.error('Error retrieving inactive users', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+
+
+
+
+exports.updateLastLogin = async (userId) => {
+    try {
+        // Check if userId is valid
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            throw new Error('Invalid user ID');
+        }
+
+        // Update the lastLogin field for the user
+        await User.findByIdAndUpdate(userId, { lastLogin: new Date() }, { new: true });
+
+        console.log('Last login updated successfully for user:', userId);
+    } catch (error) {
+        console.error('Error updating last login for user:', error);
+    }
+};
+
 

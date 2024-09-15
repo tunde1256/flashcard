@@ -90,6 +90,7 @@
     "mquery": "^5.0.0",
     "ms": "^2.0.0",
     "negotiator": "^0.6.3",
+    "node-cron": "^3.0.3",
     "nodemon": "^3.1.4",
     "normalize-path": "^3.0.0",
     "object-inspect": "^1.13.2",

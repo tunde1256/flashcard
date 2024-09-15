@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const AdminRoute = require('../controller/admin');
 const { validateCreateAdmin, validateLoginAdmin} = require('../middleware/validation'); // Ensure correct path
-
+const broadCast = require('../controller/admin')
 // Admin routes
 router.post('/register', validateCreateAdmin, AdminRoute.createAdmin);
 router.post('/login', validateLoginAdmin, AdminRoute.loginAdmin);
@@ -24,6 +24,12 @@ router.put('/questions/:questionId/answers/:answerId', AdminRoute.updateAnswerFo
 router.delete('/questions/:questionId/answers/:answerId', AdminRoute.deleteAnswerForQuestion);
 router.post('/forgotPassword', AdminRoute.forgotPassword);
 router.put('/resetPassword/:token', AdminRoute.resetPassword);
+router.post('/broadcast', broadCast.broadcastInactiveUsers);
+router.put('/markbroadcast', broadCast.markNotificationAsRead)
+router.put('/lastLogin', AdminRoute.updateLastLogin)
+router.get ('/getInactiveUsers/:Id', AdminRoute.getInactiveUsers)
+
+
 /**
  * @swagger
  * /admin/register:

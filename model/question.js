@@ -1,29 +1,15 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const questionSchema = new Schema({
-    question: {
-        type: String,
-        required: true
-    },
-    createdBy: {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    },
-    category: {
-        type: String,
-        required: true
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-    answers: [{  // This field will store references to Answer documents
-        type: Schema.Types.ObjectId,
-        ref: 'Answer'
-    }]
+const questionSchema = new mongoose.Schema({
+    title: String,
+    description: String,
+    question: String,
+    createdBy: mongoose.Schema.Types.ObjectId,
+    category: String,
+    answers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Answer' }], // Reference to the Answer model
+    createdAt: Date
 });
 
-const Question = mongoose.models.Question || mongoose.model('Question', questionSchema);
+const Question = mongoose.model('Question', questionSchema);
 module.exports = Question;

@@ -4,6 +4,7 @@ const Answer = require('../model/Answer'); // Adjust the path as needed
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const logger = require('../logger'); // Adjust the path as necessary
+const { broadcastInactiveUsers } = require('../controller/admin'); 
 
 exports.loginUser = async (req, res) => {
     try {
@@ -22,6 +23,10 @@ exports.loginUser = async (req, res) => {
             logger.warn('Login failed: Invalid credentials', { email });
             return res.status(401).json({ message: 'Invalid credentials' });
         }
+
+        // Update the last login date
+        user.lastLogin = new Date();
+        await user.save();
 
         // Generate JWT token
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -46,6 +51,9 @@ exports.loginUser = async (req, res) => {
             }
         }
 
+        // Send notifications to inactive users
+        await broadcastInactiveUsers();
+
         // Return user details along with their questions and the matched answer if queried
         logger.info('Login successful', { userId: user._id, token });
         return res.status(200).json({
@@ -65,7 +73,6 @@ exports.loginUser = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
-
 // User registration
 exports.createUser = async (req, res) => {
     try {
@@ -332,7 +339,7 @@ exports.createQuestionAndAnswer = async (req, res) => {
         const newQuestion = new Question({
             question: questionText,
             createdBy: userId,
-            category // Include category
+            category
         });
         await newQuestion.save();
 
@@ -341,9 +348,12 @@ exports.createQuestionAndAnswer = async (req, res) => {
             questionId: newQuestion._id,
             answerText,
             createdBy: userId,
-            category // Include category
         });
         await newAnswer.save();
+
+        // Update the question's answers array to include the new answer
+        newQuestion.answers.push(newAnswer._id);
+        await newQuestion.save(); // Save the question after updating its answers array
 
         logger.info('Question and answer created successfully', { userId, questionId: newQuestion._id, answerId: newAnswer._id });
         return res.status(201).json({
@@ -357,6 +367,7 @@ exports.createQuestionAndAnswer = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
 // POST /api/user/create-question-answer
 exports.createQuestionAndAnswer2 = async (req, res) => {
     try {
@@ -388,9 +399,12 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
             questionId: newQuestion._id,
             answerText,
             createdBy: userId,
-            category
         });
         await newAnswer.save();
+
+        // Update the question's answers array to include the new answer
+        newQuestion.answers.push(newAnswer._id);
+        await newQuestion.save(); // Save the question after updating its answers array
 
         logger.info('Question and answer created successfully', { userId, questionId: newQuestion._id, answerId: newAnswer._id });
         return res.status(201).json({
@@ -405,80 +419,36 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
     }
 };
 
-exports.deleteQuestionAndAnswer = async (req, res) => {
+exports.getALLQA = async (req, res) => {
     try {
-        const { userId, questionId, answerId } = req.body;
-
-        // Validate input
-        if (!userId || !questionId || !answerId) {
-            logger.warn('Question and answer deletion failed: Missing required fields', { userId, questionId, answerId });
-            return res.status(400).json({ message: 'User ID, question ID, and answer ID are required' });
-        }
-
-        // Find the user
-        const user = await User.findById(userId);
-        if (!user) {
-            logger.warn('Question and answer deletion failed: User not found', { userId });
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        // Find and delete the question
-        const question = await Question.findByIdAndDelete(questionId);
-        if (!question) {
-            logger.warn('Question and answer deletion failed: Question not found', { questionId });
-            return
-}
-            return res.status(200).json({
-                message: 'Question and answer deleted successfully'
-            });
-    }
-    catch (error) {
-        logger.error('Error deleting question and answer', { error });
-        return res.status(500).json({ message: 'Server error' });
-    }
-}
-exports.getAllQuestionsAndAnswers = async (req, res) => {
-    try {
-        // Extract userId and category from request body (or params if required)
         const { userId, category } = req.body;
 
-        // Validate input
         if (!userId) {
-            logger.warn('Question and answer retrieval failed: Missing userId');
             return res.status(400).json({ message: 'User ID is required' });
         }
 
-        // Build a query object to filter by userId and category
-        const query = { createdBy: userId }; // Ensure only questions created by this user are fetched
-        if (category) {
-            query.category = category; // Optionally filter by category if provided
-        }
+        // Build the query
+        const query = { createdBy: userId };
+        if (category) query.category = category;
 
-        logger.info('Querying questions with filters', { query });
+        // Fetch questions and populate answers
+        const questions = await Question.find(query)
+            .populate({
+                path: 'answers',        // Field to populate (answers)
+                select: 'answerText',    // Select only the answerText field from Answer
+            })
+            .exec();
 
-        // Find questions by the user and optionally by category
-        const questions = await Question.find(query).populate({
-            path: 'answers',
-            match: { createdBy: userId }, // Ensure only answers created by this user are included
-        });
-
-        // Check if any questions and answers were found
         if (!questions || questions.length === 0) {
-            logger.warn('No questions and answers found for this user', { userId, category });
-            return res.status(404).json({ message: 'No questions and answers found for this user' });
+            return res.status(404).json({ message: 'No questions found' });
         }
 
-        logger.info('Questions and answers retrieved successfully', { userId, category, questionCount: questions.length });
         return res.status(200).json({ questions });
-
     } catch (error) {
-        // Log the stack trace for detailed debugging
-        logger.error('Error retrieving questions and answers', { error: error.message, stack: error.stack });
+        console.error('Error retrieving questions and answers:', error.message);
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
-
-
 
 // get category
 exports.getQuestionsAndAnswersByCategory = async (req, res) => {
