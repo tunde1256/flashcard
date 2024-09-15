@@ -26,9 +26,10 @@ router.post('/forgotPassword', AdminRoute.forgotPassword);
 router.put('/resetPassword/:token', AdminRoute.resetPassword);
 router.post('/broadcast', broadCast.broadcastInactiveUsers);
 router.put('/markbroadcast', broadCast.markNotificationAsRead)
-router.put('/lastLogin', AdminRoute.updateLastLogin)
+
 router.get ('/getInactiveUsers/:Id', AdminRoute.getInactiveUsers)
 
+router.put('/lastLogin/:userId', AdminRoute.updateLastLogin);
 
 /**
  * @swagger

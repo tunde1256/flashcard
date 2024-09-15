@@ -769,20 +769,38 @@ exports.getInactiveUsers = async (req, res) => {
 
 
 
-exports.updateLastLogin = async (userId) => {
+exports.updateLastLogin = async (req, res) => {
     try {
-        // Check if userId is valid
+        // Extract userId from URL parameters
+        const { userId } = req.params;
+
+        // Log the incoming request
+        console.log('Request received to update last login for userId:', userId);
+
+        // Validate the userId
         if (!mongoose.Types.ObjectId.isValid(userId)) {
-            throw new Error('Invalid user ID');
+            return res.status(400).json({ message: 'Invalid user ID' });
         }
 
-        // Update the lastLogin field for the user
-        await User.findByIdAndUpdate(userId, { lastLogin: new Date() }, { new: true });
+        // Update lastLogin for the user
+        const result = await User.findByIdAndUpdate(
+            userId,
+            { lastLogin: new Date() },
+            { new: true } // Return the updated document
+        ).exec();
 
-        console.log('Last login updated successfully for user:', userId);
+        // Check if user was found and updated
+        if (!result) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json({
+            message: 'Last login updated successfully',
+            user: result
+        });
     } catch (error) {
+        // Log the full error object
         console.error('Error updating last login for user:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 };
-
-
