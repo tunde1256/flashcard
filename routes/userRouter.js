@@ -28,6 +28,8 @@ router.post("/quiz-answer", userController.submitTypedAnswers);
 
 router.get("/QA/:userId/:category", userController.getALLQA);
 
+router.post('/flashcard/:questionId',userController.deleteFlashcard)
+router.put('/flashcard/:questionId',userController.updateFlashcard)
 /**
  * @swagger
  * /user/register:

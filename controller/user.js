@@ -526,37 +526,55 @@ exports.getALLQA = async (req, res) => {
 
 
 // // get all questions and answers by category
- exports.getAllCategories = async (req, res) => {
-   try {
+exports.getAllCategories = async (req, res) => {
+    try {
         const { userId } = req.params; // userId from query parameters
-       if (!userId) {
+        if (!userId) {
             return res.status(400).json({ message: 'User ID is required' });
         }
 
-//         // Find all questions created by the user and get unique categories
+        // Find all distinct categories for the user's questions
         const categories = await Question.find({ createdBy: userId }).distinct('category');
 
-         if (categories.length === 0) {
-             return res.status(404).json({ message: 'No categories found for this user' });
-       }
+        if (categories.length === 0) {
+            return res.status(404).json({ message: 'No categories found for this user' });
+        }
 
-//         // Fetch all questions and answers for the categories
-       const questions = await Question.find({ createdBy: userId, category: { $in: categories } });
+        // Fetch all questions and answers for the user
+        const questions = await Question.find({ createdBy: userId, category: { $in: categories } });
         const questionIds = questions.map(question => question._id);
         const answers = await Answer.find({ questionId: { $in: questionIds } });
 
-        return res.status(200).json({
-             message: 'Questions and answers retrieved successfully',
-            categories,
-           questions,
-           answers
+        // Calculate progress for each category
+        const progressByCategory = categories.map(category => {
+            const questionsInCategory = questions.filter(q => q.category === category);
+            const answeredQuestions = answers.filter(a => questionsInCategory.some(q => q._id.equals(a.questionId)));
+            const totalQuestions = questionsInCategory.length;
+            const answeredCount = answeredQuestions.length;
+            const progress = totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0;
+
+            return {
+                category,
+                totalQuestions,
+                answeredCount,
+                progress: `${progress.toFixed(2)}%`
+            };
         });
 
-     } catch (error) {
-      logger.error('Error fetching questions and answers by user:', error);
+        return res.status(200).json({
+            message: 'Questions and answers retrieved successfully',
+            categories,
+            questions,
+            answers,
+            progressByCategory
+        });
+
+    } catch (error) {
+        logger.error('Error fetching questions and answers by user:', error);
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
 
 
 exports.resetPassword = async (req, res) => {
@@ -937,4 +955,80 @@ exports.deleteAllUsers = async (req, res) => {
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+exports.deleteFlashcard = async (req, res) => {
+    try {
+        const { questionId } = req.params;
+
+        // Validate input
+        if (!questionId) {
+            logger.warn('Delete flashcard failed: Missing question ID');
+            return res.status(400).json({ message: 'Question ID is required' });
+        }
+
+        // Find and delete the question
+        const question = await Question.findById(questionId);
+        if (!question) {
+            logger.warn('Delete flashcard failed: Question not found', { questionId });
+            return res.status(404).json({ message: 'Question not found' });
+        }
+
+        // Delete all answers associated with the question
+        await Answer.deleteMany({ questionId: question._id });
+
+        // Delete the question itself
+        await question.remove();
+
+        logger.info('Flashcard deleted successfully', { questionId });
+        return res.status(200).json({ message: 'Flashcard deleted successfully' });
+
+    } catch (error) {
+        logger.error('Error deleting flashcard', { error });
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+exports.updateFlashcard = async (req, res) => {
+    try {
+        const { questionId } = req.params;
+        const { questionText, answerText } = req.body;
+
+        // Validate input
+        if (!questionId || (!questionText && !answerText)) {
+            logger.warn('Update flashcard failed: Missing required fields', { questionId, questionText, answerText });
+            return res.status(400).json({ message: 'Question ID, and at least one of question text or answer text is required' });
+        }
+
+        // Find the question
+        const question = await Question.findById(questionId);
+        if (!question) {
+            logger.warn('Update flashcard failed: Question not found', { questionId });
+            return res.status(404).json({ message: 'Question not found' });
+        }
+
+        // Update question text if provided
+        if (questionText) question.question = questionText;
+        
+        // Update the associated answer if provided
+        if (answerText) {
+            const answer = await Answer.findOne({ questionId });
+            if (answer) {
+                answer.answerText = answerText;
+                await answer.save();
+            } else {
+                logger.warn('Update flashcard failed: Answer not found for question', { questionId });
+                return res.status(404).json({ message: 'Answer not found for the question' });
+            }
+        }
+
+        // Save the updated question
+        await question.save();
+
+        logger.info('Flashcard updated successfully', { questionId });
+        return res.status(200).json({ message: 'Flashcard updated successfully', question, answerText });
+
+    } catch (error) {
+        logger.error('Error updating flashcard', { error });
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
    
