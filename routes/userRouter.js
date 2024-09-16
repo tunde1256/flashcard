@@ -3,7 +3,7 @@ const router = express.Router();
 const userController = require("../controller/user");
 
 // User routes
-// router.post('/register', userController.createUser); // User registration
+router.post('/register', userController.createUser); // User registration
 
 router.post("/login", userController.loginUser); // User login
 router.get("/users", userController.getAllUsers); // Get all users with pagination
