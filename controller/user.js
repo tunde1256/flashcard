@@ -847,64 +847,102 @@ exports.updateUser = async(req, res, next) => {
     }
     exports.getQuizQuestions = async (req, res) => {
         try {
-            const { userId, category } = req.params;
-   
+            const { userId } = req.params; // UserId and category in params
+            const { category } = req.params; // Use category from query parameters
+    
             if (!userId) {
                 return res.status(400).json({ message: 'User ID is required' });
             }
-   
-            // Fetch questions by category
-            const questions = await Question.find({ category }).limit(10); // Adjust limit as needed
-   
+    
+            if (!category) {
+                return res.status(400).json({ message: 'Category is required' });
+            }
+    
+            // Fetch questions by category and userId, limit to 10 for the quiz
+            const questions = await Question.find({ category, createdBy: userId }).limit(10);
+    
             if (questions.length === 0) {
                 return res.status(404).json({ message: 'No questions available in this category' });
             }
-   
-            res.status(200).json({
+    
+            // Fetch answers related to the fetched questions
+            const questionIds = questions.map(q => q._id);
+            const answers = await Answer.find({ questionId: { $in: questionIds }, userId });
+    
+            // Calculate progress based on answered questions
+            const totalQuestions = questions.length;
+            const answeredQuestions = answers.length;
+            const progress = (answeredQuestions / totalQuestions) * 100;
+    
+            return res.status(200).json({
                 message: 'Quiz questions retrieved successfully',
-                questions
+                questions,
+                progress: `${progress.toFixed(2)}%` // Return progress as percentage
             });
         } catch (error) {
             console.error('Error fetching quiz questions:', error);
-            res.status(500).json({ message: 'Server error' });
+            return res.status(500).json({ message: 'Server error' });
         }
     };
     exports.submitTypedAnswers = async (req, res) => {
         try {
-            const { userId, answers } = req.body;
-   
+            const { answers } = req.body;
+            const { userId } = req.params;
+    
+            // Validate input
             if (!userId || !answers || !Array.isArray(answers)) {
                 return res.status(400).json({ message: 'User ID and answers are required' });
             }
-   
-            let correctCount = 0;
+    
+            let correctCount = 0;  // Counter for correct answers
             const results = [];
-   
+    
+            // Loop through each submitted answer
             for (const answer of answers) {
                 const { questionId, userAnswer } = answer;
-   
-                // Find the question
+    
+                // Find the question by questionId
                 const question = await Question.findById(questionId);
                 if (!question) {
                     results.push({ questionId, correct: false, error: 'Question not found' });
                     continue;
                 }
-   
-                // Check if the user's answer is correct
+    
+                // Ensure both correctAnswer and userAnswer are valid
+                if (!question.correctAnswer) {
+                    results.push({
+                        questionId,
+                        correct: false,
+                        error: 'No correct answer found for this question'
+                    });
+                    continue;
+                }
+    
+                if (!userAnswer) {
+                    results.push({
+                        questionId,
+                        correct: false,
+                        error: 'User answer is missing'
+                    });
+                    continue;
+                }
+    
+                // Compare answers (case-insensitive and trimmed)
                 const isCorrect = question.correctAnswer.trim().toLowerCase() === userAnswer.trim().toLowerCase();
-   
+    
+                // Increment correct answer count if the user's answer is correct
                 if (isCorrect) correctCount++;
-   
-                // Save user's answer
+    
+                // Save user's answer in the Answer model
                 const newAnswer = new Answer({
                     userId,
                     questionId,
                     userAnswer,
                     isCorrect
                 });
-   
                 await newAnswer.save();
-   
+    
+                // Store the result of this question
                 results.push({
                     questionId,
                     correctAnswer: question.correctAnswer,
@@ -912,19 +950,28 @@ exports.updateUser = async(req, res, next) => {
                     correct: isCorrect
                 });
             }
-   
+    
+            // Calculate progress as a percentage of correct answers
+            const totalQuestions = answers.length;
+            const progress = (correctCount / totalQuestions) * 100;
+    
+            // Return the results and progress
             res.status(200).json({
                 message: 'Quiz results submitted successfully',
                 results,
                 correctCount,
-                totalQuestions: answers.length
+                totalQuestions,
+                progress: `${progress.toFixed(2)}%` // Progress percentage
             });
-   
+    
         } catch (error) {
             console.error('Error submitting quiz answers:', error);
             res.status(500).json({ message: 'Server error' });
         }
     };
+    
+    
+    
 // Get All Users
 exports.getAllUsers = async (req, res) => {
     try {
@@ -988,20 +1035,20 @@ exports.deleteFlashcard = async (req, res) => {
 };
 exports.updateFlashcard = async (req, res) => {
     try {
-        const { questionId } = req.params;
+        const { userId, questionId } = req.params; // UserId and questionId from params
         const { questionText, answerText } = req.body;
 
         // Validate input
-        if (!questionId || (!questionText && !answerText)) {
-            logger.warn('Update flashcard failed: Missing required fields', { questionId, questionText, answerText });
-            return res.status(400).json({ message: 'Question ID, and at least one of question text or answer text is required' });
+        if (!userId || !questionId || (!questionText && !answerText)) {
+            logger.warn('Update flashcard failed: Missing required fields', { userId, questionId, questionText, answerText });
+            return res.status(400).json({ message: 'User ID, question ID, and at least one of question text or answer text is required' });
         }
 
-        // Find the question
-        const question = await Question.findById(questionId);
+        // Find the question created by the user
+        const question = await Question.findOne({ _id: questionId, createdBy: userId });
         if (!question) {
-            logger.warn('Update flashcard failed: Question not found', { questionId });
-            return res.status(404).json({ message: 'Question not found' });
+            logger.warn('Update flashcard failed: Question not found', { userId, questionId });
+            return res.status(404).json({ message: 'Question not found or not owned by the user' });
         }
 
         // Update question text if provided
@@ -1022,7 +1069,7 @@ exports.updateFlashcard = async (req, res) => {
         // Save the updated question
         await question.save();
 
-        logger.info('Flashcard updated successfully', { questionId });
+        logger.info('Flashcard updated successfully', { userId, questionId });
         return res.status(200).json({ message: 'Flashcard updated successfully', question, answerText });
 
     } catch (error) {
@@ -1030,5 +1077,3 @@ exports.updateFlashcard = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
-
-   

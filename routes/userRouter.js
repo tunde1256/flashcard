@@ -23,12 +23,12 @@ router.post("/reset-password", userController.resetPassword); // Reset password 
 router.get("/category/:category",userController.getAllQuestionsAndAnswersByCategory
 ); //
  router.get("/categories/:userId", userController.getAllCategories); // Search for questions by title, description, or answer text
-router.get("/quiz-question/:id/:category", userController.getQuizQuestions);
-router.post("/quiz-answer", userController.submitTypedAnswers);
+router.get("/quiz-question/:userId/:category", userController.getQuizQuestions);
+router.post("/quiz-answer/:userId", userController.submitTypedAnswers);
 
 router.get("/QA/:userId/:category", userController.getALLQA);
 
-router.post('/flashcard/:questionId',userController.deleteFlashcard)
+router.delete('/flashcard/:questionId',userController.deleteFlashcard)
 router.put('/flashcard/:questionId',userController.updateFlashcard)
 /**
  * @swagger
