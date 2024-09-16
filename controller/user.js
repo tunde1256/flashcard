@@ -886,8 +886,8 @@ exports.updateUser = async(req, res, next) => {
     };
     exports.submitTypedAnswers = async (req, res) => {
         try {
-            const { answers } = req.body;
-            const { userId } = req.params;
+            const { answers } = req.body;  // Array of submitted answers
+            const { userId } = req.params;  // User ID from the params
     
             // Validate input
             if (!userId || !answers || !Array.isArray(answers)) {
@@ -929,13 +929,13 @@ exports.updateUser = async(req, res, next) => {
                     continue;
                 }
     
-                // Compare user's answer with the correct answer (case-insensitive and trimmed)
+                // Compare user's answer with the correct answer in the Answer model (case-insensitive and trimmed)
                 const isCorrect = correctAnswerEntry.answerText.trim().toLowerCase() === userAnswer.trim().toLowerCase();
     
                 // Increment correct answer count if the user's answer is correct
                 if (isCorrect) correctCount++;
     
-                // Save user's answer submission in the Answer model
+                // Save the user's answer submission in the Answer model
                 const newAnswerSubmission = new Answer({
                     userId,
                     questionId,
@@ -975,6 +975,7 @@ exports.updateUser = async(req, res, next) => {
     
     
     
+    
 // Get All Users
 exports.getAllUsers = async (req, res) => {
     try {
@@ -1005,6 +1006,8 @@ exports.deleteAllUsers = async (req, res) => {
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
+
 exports.deleteFlashcard = async (req, res) => {
     try {
         const { userId, questionId } = req.params;
@@ -1015,8 +1018,16 @@ exports.deleteFlashcard = async (req, res) => {
             return res.status(400).json({ message: 'User ID and Question ID are required' });
         }
 
+        // Log the IDs being used for debugging
+        logger.info('Attempting to delete flashcard', { userId, questionId });
+
+        // Convert to ObjectId using the 'new' keyword to avoid casting errors
+        const userObjectId = new mongoose.Types.ObjectId(userId);
+        const questionObjectId = new mongoose.Types.ObjectId(questionId);
+
         // Find the question created by the user
-        const question = await Question.findOne({ _id: questionId, createdBy: userId });
+        const question = await Question.findOne({ _id: questionObjectId, createdBy: userObjectId });
+        logger.info('Query result:', { question });
         if (!question) {
             logger.warn('Delete flashcard failed: Question not found or not owned by the user', { userId, questionId });
             return res.status(404).json({ message: 'Question not found or not owned by the user' });
@@ -1025,17 +1036,19 @@ exports.deleteFlashcard = async (req, res) => {
         // Delete all answers associated with the question
         await Answer.deleteMany({ questionId: question._id });
 
-        // Delete the question itself
-        await question.remove();
+        // Use deleteOne to remove the question
+        await Question.deleteOne({ _id: question._id });
 
         logger.info('Flashcard deleted successfully', { userId, questionId });
         return res.status(200).json({ message: 'Flashcard deleted successfully' });
 
     } catch (error) {
-        logger.error('Error deleting flashcard', { error });
+        logger.error('Error deleting flashcard', { error: error.message, stack: error.stack });
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
+
 
 exports.updateFlashcard = async (req, res) => {
     try {
