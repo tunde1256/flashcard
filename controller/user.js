@@ -397,7 +397,8 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
         const newQuestion = new Question({
             question: questionText,
             createdBy: userId,
-            category
+            category,
+            answers: [] // Initialize as an empty array
         });
         await newQuestion.save();
 
@@ -425,6 +426,7 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
 
 exports.getALLQA = async (req, res) => {
     try {
@@ -887,29 +889,35 @@ exports.updateUser = async(req, res, next) => {
     exports.submitTypedAnswers = async (req, res) => {
         try {
             const { answers } = req.body;  // Array of submitted answers
-            const { userId } = req.params;  // User ID from the params
+            const { userId, questionId } = req.params;  // User ID and questionId from the params
     
             // Validate input
-            if (!userId || !answers || !Array.isArray(answers)) {
-                return res.status(400).json({ message: 'User ID and answers are required' });
+            if (!userId || !questionId || !answers || !Array.isArray(answers)) {
+                return res.status(400).json({ message: 'User ID, question ID, and answers are required' });
             }
     
             let correctCount = 0;  // Counter for correct answers
             const results = [];
     
+            // Find the question by questionId and populate its answers
+            const question = await Question.findById(questionId).populate('answers');
+            console.log('Question found:', question);
+    
+            if (!question) {
+                return res.status(404).json({ message: 'Question not found' });
+            }
+    
             // Loop through each submitted answer
             for (const answer of answers) {
-                const { questionId, userAnswer } = answer;
+                const { userAnswer } = answer;
     
-                // Find the question by questionId
-                const question = await Question.findById(questionId);
-                if (!question) {
-                    results.push({ questionId, correct: false, error: 'Question not found' });
-                    continue;
-                }
+                console.log(`Processing answer for questionId: ${questionId}`);
+                console.log(`User answer: ${userAnswer}`);  // Log userAnswer
     
                 // Find the correct answer in the Answer model associated with the questionId
-                const correctAnswerEntry = await Answer.findOne({ questionId, isCorrect: true });
+                const correctAnswerEntry = question.answers.find(ans => ans.isCorrect);
+                console.log('Correct answer entry:', correctAnswerEntry);
+    
                 if (!correctAnswerEntry) {
                     results.push({
                         questionId,
@@ -921,6 +929,7 @@ exports.updateUser = async(req, res, next) => {
     
                 // Ensure userAnswer is provided
                 if (!userAnswer) {
+                    console.log(`User answer for questionId ${questionId} is missing`);
                     results.push({
                         questionId,
                         correct: false,
@@ -931,6 +940,9 @@ exports.updateUser = async(req, res, next) => {
     
                 // Compare user's answer with the correct answer in the Answer model (case-insensitive and trimmed)
                 const isCorrect = correctAnswerEntry.answerText.trim().toLowerCase() === userAnswer.trim().toLowerCase();
+                console.log(`User answer: ${userAnswer}`);
+                console.log(`Correct answer: ${correctAnswerEntry.answerText}`);
+                console.log(`Is correct: ${isCorrect}`);
     
                 // Increment correct answer count if the user's answer is correct
                 if (isCorrect) correctCount++;
@@ -939,7 +951,7 @@ exports.updateUser = async(req, res, next) => {
                 const newAnswerSubmission = new Answer({
                     userId,
                     questionId,
-                    userAnswer,
+                    answerText: userAnswer,
                     isCorrect
                 });
                 await newAnswerSubmission.save();
@@ -947,7 +959,7 @@ exports.updateUser = async(req, res, next) => {
                 // Store the result of this question
                 results.push({
                     questionId,
-                    correctAnswer: correctAnswerEntry.answerText, // Use the correct answer from the database
+                    correctAnswer: correctAnswerEntry.answerText,
                     userAnswer,
                     correct: isCorrect
                 });
@@ -963,7 +975,7 @@ exports.updateUser = async(req, res, next) => {
                 results,
                 correctCount,
                 totalQuestions,
-                progress: `${progress.toFixed(2)}%` // Progress percentage
+                progress: `${progress.toFixed(2)}%`
             });
     
         } catch (error) {
@@ -971,6 +983,7 @@ exports.updateUser = async(req, res, next) => {
             res.status(500).json({ message: 'Server error' });
         }
     };
+    
     
     
     
