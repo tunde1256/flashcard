@@ -4,7 +4,8 @@ const Answer = require('../model/Answer'); // Adjust the path as needed
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const logger = require('../logger'); // Adjust the path as necessary
-const { broadcastInactiveUsers } = require('../controller/admin'); 
+const { broadcastInactiveUsers } = require('./admin'); 
+const mongoose = require('mongoose');
 
 exports.loginUser = async (req, res) => {
     try {
@@ -427,34 +428,45 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
 
 exports.getALLQA = async (req, res) => {
     try {
-        const { userId, category } = req.body;
-
-        if (!userId) {
-            return res.status(400).json({ message: 'User ID is required' });
+        const { userId, category } = req.params;
+ 
+        // Log the request parameters to ensure they are being captured correctly
+        console.log('Request params:', req.params);
+ 
+        // Validate the User ID
+        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(400).json({ message: 'Valid User ID is required' });
         }
-
-        // Build the query
+ 
+        // Build the query for questions
         const query = { createdBy: userId };
-        if (category) query.category = category;
-
+        if (category) {
+            query.category = new RegExp(category, 'i'); // Case-insensitive category match
+        }
+ 
+        // Log the query to see what is being sent to MongoDB
+        console.log('Query:', query);
+ 
         // Fetch questions and populate answers
         const questions = await Question.find(query)
             .populate({
-                path: 'answers',        // Field to populate (answers)
-                select: 'answerText',    // Select only the answerText field from Answer
+                path: 'answers',        // Populate answers field
+                select: 'answerText',   // Select only the answerText field from the Answer model
             })
             .exec();
-
+ 
         if (!questions || questions.length === 0) {
             return res.status(404).json({ message: 'No questions found' });
         }
-
+ 
         return res.status(200).json({ questions });
     } catch (error) {
         console.error('Error retrieving questions and answers:', error.message);
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
-};
+ };
+ 
+
 
 // get category
 exports.getQuestionsAndAnswersByCategory = async (req, res) => {
@@ -513,36 +525,35 @@ exports.getQuestionsAndAnswersByCategory = async (req, res) => {
 
 
 
-// get all questions and answers by category
-exports.getAllCategories = async (req, res) => {
-    try {
+// // get all questions and answers by category
+ exports.getAllCategories = async (req, res) => {
+   try {
         const { userId } = req.params; // userId from query parameters
-
-        if (!userId) {
+       if (!userId) {
             return res.status(400).json({ message: 'User ID is required' });
         }
 
-        // Find all questions created by the user and get unique categories
+//         // Find all questions created by the user and get unique categories
         const categories = await Question.find({ createdBy: userId }).distinct('category');
 
-        if (categories.length === 0) {
-            return res.status(404).json({ message: 'No categories found for this user' });
-        }
+         if (categories.length === 0) {
+             return res.status(404).json({ message: 'No categories found for this user' });
+       }
 
-        // Fetch all questions and answers for the categories
-        const questions = await Question.find({ createdBy: userId, category: { $in: categories } });
+//         // Fetch all questions and answers for the categories
+       const questions = await Question.find({ createdBy: userId, category: { $in: categories } });
         const questionIds = questions.map(question => question._id);
         const answers = await Answer.find({ questionId: { $in: questionIds } });
 
         return res.status(200).json({
-            message: 'Questions and answers retrieved successfully',
+             message: 'Questions and answers retrieved successfully',
             categories,
-            questions,
-            answers
+           questions,
+           answers
         });
 
-    } catch (error) {
-        logger.error('Error fetching questions and answers by user:', error);
+     } catch (error) {
+      logger.error('Error fetching questions and answers by user:', error);
         return res.status(500).json({ message: 'Server error' });
     }
 };
@@ -757,15 +768,15 @@ exports.updateUser = async(req, res, next) => {
     exports.getUsers = async (req, res) => {
         try {
             const { page = 1, limit = 10 } = req.query; // Default values: page 1 and 10 items per page
-    
+   
             // Calculate total number of users
             const totalUsers = await User.countDocuments();
-    
+   
             // Find all users with pagination
             const users = await User.find()
                 .skip((page - 1) * limit) // Skip users for previous pages
                 .limit(parseInt(limit));  // Limit the number of users returned per page
-    
+   
             // Return paginated data
             logger.info('Fetched users successfully', {
                 pagination: {
@@ -775,7 +786,7 @@ exports.updateUser = async(req, res, next) => {
                     limit: parseInt(limit)
                 }
             });
-    
+   
             return res.status(200).json({
                 users,
                 pagination: {
@@ -785,7 +796,7 @@ exports.updateUser = async(req, res, next) => {
                     limit: parseInt(limit)
                 }
             });
-    
+   
         } catch (error) {
             logger.error('Error fetching users', { error });
             return res.status(500).json({ message: 'Server error' });
@@ -804,18 +815,18 @@ exports.updateUser = async(req, res, next) => {
     exports.getQuizQuestions = async (req, res) => {
         try {
             const { userId, category } = req.params;
-    
+   
             if (!userId) {
                 return res.status(400).json({ message: 'User ID is required' });
             }
-    
+   
             // Fetch questions by category
             const questions = await Question.find({ category }).limit(10); // Adjust limit as needed
-    
+   
             if (questions.length === 0) {
                 return res.status(404).json({ message: 'No questions available in this category' });
             }
-    
+   
             res.status(200).json({
                 message: 'Quiz questions retrieved successfully',
                 questions
@@ -828,29 +839,29 @@ exports.updateUser = async(req, res, next) => {
     exports.submitTypedAnswers = async (req, res) => {
         try {
             const { userId, answers } = req.body;
-    
+   
             if (!userId || !answers || !Array.isArray(answers)) {
                 return res.status(400).json({ message: 'User ID and answers are required' });
             }
-    
+   
             let correctCount = 0;
             const results = [];
-    
+   
             for (const answer of answers) {
                 const { questionId, userAnswer } = answer;
-    
+   
                 // Find the question
                 const question = await Question.findById(questionId);
                 if (!question) {
                     results.push({ questionId, correct: false, error: 'Question not found' });
                     continue;
                 }
-    
+   
                 // Check if the user's answer is correct
                 const isCorrect = question.correctAnswer.trim().toLowerCase() === userAnswer.trim().toLowerCase();
-    
+   
                 if (isCorrect) correctCount++;
-    
+   
                 // Save user's answer
                 const newAnswer = new Answer({
                     userId,
@@ -858,9 +869,9 @@ exports.updateUser = async(req, res, next) => {
                     userAnswer,
                     isCorrect
                 });
-    
+   
                 await newAnswer.save();
-    
+   
                 results.push({
                     questionId,
                     correctAnswer: question.correctAnswer,
@@ -868,17 +879,47 @@ exports.updateUser = async(req, res, next) => {
                     correct: isCorrect
                 });
             }
-    
+   
             res.status(200).json({
                 message: 'Quiz results submitted successfully',
                 results,
                 correctCount,
                 totalQuestions: answers.length
             });
-    
+   
         } catch (error) {
             console.error('Error submitting quiz answers:', error);
             res.status(500).json({ message: 'Server error' });
         }
     };
-    
+// Get All Users
+exports.getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find(); // Retrieve all users from the database
+
+        if (!users || users.length === 0) {
+            return res.status(404).json({ message: 'No users found' });
+        }
+
+        return res.status(200).json({ users });
+    } catch (error) {
+        console.error('Error retrieving users:', error.message);
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+// Delete All Users
+exports.deleteAllUsers = async (req, res) => {
+    try {
+        const result = await User.deleteMany(); // Delete all users from the database
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ message: 'No users to delete' });
+        }
+
+        return res.status(200).json({ message: `${result.deletedCount} users deleted` });
+    } catch (error) {
+        console.error('Error deleting users:', error.message);
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+   
