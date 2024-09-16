@@ -908,8 +908,9 @@ exports.updateUser = async(req, res, next) => {
                     continue;
                 }
     
-                // Ensure both correctAnswer and userAnswer are valid
-                if (!question.correctAnswer) {
+                // Find the correct answer in the Answer model associated with the questionId
+                const correctAnswerEntry = await Answer.findOne({ questionId, isCorrect: true });
+                if (!correctAnswerEntry) {
                     results.push({
                         questionId,
                         correct: false,
@@ -918,6 +919,7 @@ exports.updateUser = async(req, res, next) => {
                     continue;
                 }
     
+                // Ensure userAnswer is provided
                 if (!userAnswer) {
                     results.push({
                         questionId,
@@ -927,25 +929,25 @@ exports.updateUser = async(req, res, next) => {
                     continue;
                 }
     
-                // Compare answers (case-insensitive and trimmed)
-                const isCorrect = question.correctAnswer.trim().toLowerCase() === userAnswer.trim().toLowerCase();
+                // Compare user's answer with the correct answer (case-insensitive and trimmed)
+                const isCorrect = correctAnswerEntry.answerText.trim().toLowerCase() === userAnswer.trim().toLowerCase();
     
                 // Increment correct answer count if the user's answer is correct
                 if (isCorrect) correctCount++;
     
-                // Save user's answer in the Answer model
-                const newAnswer = new Answer({
+                // Save user's answer submission in the Answer model
+                const newAnswerSubmission = new Answer({
                     userId,
                     questionId,
                     userAnswer,
                     isCorrect
                 });
-                await newAnswer.save();
+                await newAnswerSubmission.save();
     
                 // Store the result of this question
                 results.push({
                     questionId,
-                    correctAnswer: question.correctAnswer,
+                    correctAnswer: correctAnswerEntry.answerText, // Use the correct answer from the database
                     userAnswer,
                     correct: isCorrect
                 });
@@ -969,6 +971,7 @@ exports.updateUser = async(req, res, next) => {
             res.status(500).json({ message: 'Server error' });
         }
     };
+    
     
     
     
@@ -1004,19 +1007,19 @@ exports.deleteAllUsers = async (req, res) => {
 };
 exports.deleteFlashcard = async (req, res) => {
     try {
-        const { questionId } = req.params;
+        const { userId, questionId } = req.params;
 
         // Validate input
-        if (!questionId) {
-            logger.warn('Delete flashcard failed: Missing question ID');
-            return res.status(400).json({ message: 'Question ID is required' });
+        if (!userId || !questionId) {
+            logger.warn('Delete flashcard failed: Missing user ID or question ID', { userId, questionId });
+            return res.status(400).json({ message: 'User ID and Question ID are required' });
         }
 
-        // Find and delete the question
-        const question = await Question.findById(questionId);
+        // Find the question created by the user
+        const question = await Question.findOne({ _id: questionId, createdBy: userId });
         if (!question) {
-            logger.warn('Delete flashcard failed: Question not found', { questionId });
-            return res.status(404).json({ message: 'Question not found' });
+            logger.warn('Delete flashcard failed: Question not found or not owned by the user', { userId, questionId });
+            return res.status(404).json({ message: 'Question not found or not owned by the user' });
         }
 
         // Delete all answers associated with the question
@@ -1025,7 +1028,7 @@ exports.deleteFlashcard = async (req, res) => {
         // Delete the question itself
         await question.remove();
 
-        logger.info('Flashcard deleted successfully', { questionId });
+        logger.info('Flashcard deleted successfully', { userId, questionId });
         return res.status(200).json({ message: 'Flashcard deleted successfully' });
 
     } catch (error) {
@@ -1033,6 +1036,7 @@ exports.deleteFlashcard = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
 exports.updateFlashcard = async (req, res) => {
     try {
         const { userId, questionId } = req.params; // UserId and questionId from params
