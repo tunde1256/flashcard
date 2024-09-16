@@ -469,59 +469,59 @@ exports.getALLQA = async (req, res) => {
 
 
 // get category
-exports.getQuestionsAndAnswersByCategory = async (req, res) => {
-    try {
-        const { category, userId } = req.params; // Extract category and userId from the URL parameters
+// exports.getQuestionsAndAnswersByCategory = async (req, res) => {
+//     try {
+//         const { category } = req.params; // Extract category and userId from the URL parameters
 
-        // Validate input
-        if (!category) {
-            logger.warn('Category search failed: Missing category parameter');
-            return res.status(400).json({ message: 'Category is required' });
-        }
+//         // Validate input
+//         if (!category) {
+//             logger.warn('Category search failed: Missing category parameter');
+//             return res.status(400).json({ message: 'Category is required' });
+//         }
 
-        if (!userId) {
-            logger.warn('User ID search failed: Missing userId parameter');
-            return res.status(400).json({ message: 'User ID is required' });
-        }
+//         if (!userId) {
+//             logger.warn('User ID search failed: Missing userId parameter');
+//             return res.status(400).json({ message: 'User ID is required' });
+//         }
 
-        // Build the query object to filter by category and userId
-        const query = {
-            category,
-            createdBy: userId  // Assuming `createdBy` field stores userId
-        };
+//         // Build the query object to filter by category and userId
+//         const query = {
+//             category,
+//             createdBy: userId  // Assuming `createdBy` field stores userId
+//         };
 
-        // Find questions by category and userId
-        const questions = await Question.find(query);
+//         // Find questions by category and userId
+//         const questions = await Question.find(query);
 
-        if (questions.length === 0) {
-            return res.status(404).json({ message: 'No questions found for this category and user' });
-        }
+//         if (questions.length === 0) {
+//             return res.status(404).json({ message: 'No questions found for this category and user' });
+//         }
 
-        // Find answers for the found questions
-        const questionIds = questions.map(question => question._id);
-        const answers = await Answer.find({ questionId: { $in: questionIds } });
+//         // Find answers for the found questions
+//         const questionIds = questions.map(question => question._id);
+//         const answers = await Answer.find({ questionId: { $in: questionIds } });
 
-        logger.info('Questions and answers retrieved successfully', {
-            category,
-            userId,
-            questionCount: questions.length,
-            answerCount: answers.length
-        });
+//         logger.info('Questions and answers retrieved successfully', {
+//             category,
+//             userId,
+//             questionCount: questions.length,
+//             answerCount: answers.length
+//         });
 
-        // Return response including category, userId, questions, and answers
-        return res.status(200).json({
-            message: 'Questions and answers retrieved successfully',
-            category,
-            userId,
-            questions,   // Include questions
-            answers      // Include answers
-        });
+//         // Return response including category, userId, questions, and answers
+//         return res.status(200).json({
+//             message: 'Questions and answers retrieved successfully',
+//             category,
+//             userId,
+//             questions,   // Include questions
+//             answers      // Include answers
+//         });
 
-    } catch (error) {
-        logger.error('Error retrieving questions and answers by category and user', { error });
-        return res.status(500).json({ message: 'Server error' });
-    }
-};
+//     } catch (error) {
+//         logger.error('Error retrieving questions and answers by category and user', { error });
+//         return res.status(500).json({ message: 'Server error' });
+//     }
+// };
 
 
 
@@ -646,6 +646,7 @@ exports.getAllQuestionsAndAnswersByCategory = async (req, res) => {
         const questions = await Question.find({ category });
 
         if (questions.length === 0) {
+            logger.warn('No questions found for category', { category });
             return res.status(404).json({ message: 'No questions found for this category' });
         }
 
@@ -653,12 +654,26 @@ exports.getAllQuestionsAndAnswersByCategory = async (req, res) => {
         const questionIds = questions.map(question => question._id);
         const answers = await Answer.find({ questionId: { $in: questionIds } });
 
-        logger.info('All questions and answers retrieved successfully', { category, questionCount: questions.length, answerCount: answers.length })
-    }catch(e) {
+        // Log the successful operation
+        logger.info('All questions and answers retrieved successfully', {
+            category,
+            questionCount: questions.length,
+            answerCount: answers.length
+        });
+
+        // Return the questions and their corresponding answers
+        return res.status(200).json({
+            message: 'Questions and answers retrieved successfully',
+            questions,
+            answers
+        });
+
+    } catch (error) {
         logger.error('Error retrieving all questions and answers by category', { error });
         return res.status(500).json({ message: 'Server error' });
     }
-}
+};
+
 
 
 // Get all questions and answers for a specific user

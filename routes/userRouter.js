@@ -20,11 +20,9 @@ router.get("/questions/:questionId", userController.getQuestionAndAnswers); // G
 router.get("/answers", userController.getAllAnswers); // Get all answers for
 router.post("/forgot-Password", userController.forgotPassword); // Forgot password)
 router.post("/reset-password", userController.resetPassword); // Reset password using token
-router.get(
-  "/category/:category",
-  userController.getQuestionsAndAnswersByCategory
+router.get("/category/:category",userController.getAllQuestionsAndAnswersByCategory
 ); //
-router.get("/categories/:userId", userController.getAllCategories); // Search for questions by title, description, or answer text
+ router.get("/categories/:userId", userController.getAllCategories); // Search for questions by title, description, or answer text
 router.get("/quiz-question/:id/:category", userController.getQuizQuestions);
 router.post("/quiz-answer", userController.submitTypedAnswers);
 
