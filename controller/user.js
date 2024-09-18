@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const logger = require('../logger'); // Adjust the path as necessary
 const { broadcastInactiveUsers } = require('./admin'); 
 const mongoose = require('mongoose');
+const Category = require('../model/category');
 
 exports.loginUser = async (req, res) => {
     try {
@@ -324,33 +325,47 @@ exports.deleteAnswer = async (req, res) => {
     }
 };
 
-// Create a question and answer
+
 exports.createQuestionAndAnswer = async (req, res) => {
     try {
+        console.log('Request body:', req.body); // Log the incoming request body
+
         const { userId, questionText, answerText, category } = req.body;
 
         // Validate input
         if (!userId || !questionText || !answerText || !category) {
-            logger.warn('Question and answer creation failed: Missing required fields', { userId, questionText, answerText, category });
-            return res.status(400).json({ message: 'User ID, question text, answer text, and category are required' });
+            return res.status(400).json({ message: 'User ID, question text, answer text, and category name are required' });
         }
 
         // Check if the user exists
         const user = await User.findById(userId);
         if (!user) {
-            logger.warn('Question and answer creation failed: User not found', { userId });
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Create and save the question
+        // Find or create the category
+        let categoryDoc = await Category.findOne({ categoryName: category });
+        if (!categoryDoc) {
+            // Create the category if it doesn't exist
+            categoryDoc = new Category({ categoryName: category });
+        }
+
+        // Add the question and answer to the category document
+        categoryDoc.questions.push({ questionText, answerText });
+
+        // Save the updated category document
+        await categoryDoc.save();
+
+        // Create and save the new question
         const newQuestion = new Question({
             question: questionText,
+            answer:answerText,
             createdBy: userId,
-            category
+            category: categoryDoc._id // Use the ObjectId of the category
         });
         await newQuestion.save();
 
-        // Create and save the answer
+        // Create and save the new answer
         const newAnswer = new Answer({
             questionId: newQuestion._id,
             answerText,
@@ -358,22 +373,30 @@ exports.createQuestionAndAnswer = async (req, res) => {
         });
         await newAnswer.save();
 
-        // Update the question's answers array to include the new answer
+        // Link the answer to the question
         newQuestion.answers.push(newAnswer._id);
-        await newQuestion.save(); // Save the question after updating its answers array
+        await newQuestion.save();
 
-        logger.info('Question and answer created successfully', { userId, questionId: newQuestion._id, answerId: newAnswer._id });
         return res.status(201).json({
-            message: 'Question and answer created successfully',
+            message: 'Question and answer created successfully and added to category',
             question: newQuestion,
-            answer: newAnswer
+            answer: newAnswer,
+            category: categoryDoc
         });
 
     } catch (error) {
-        logger.error('Error creating question and answer', { error });
-        return res.status(500).json({ message: 'Server error' });
+        console.error('Error creating question and answer', error);
+        return res.status(500).json({ message: 'Server error', error });
     }
 };
+
+
+
+
+
+
+
+
 
 // POST /api/user/create-question-answer
 exports.createQuestionAndAnswer2 = async (req, res) => {
@@ -574,6 +597,35 @@ exports.getAllCategories = async (req, res) => {
     } catch (error) {
         logger.error('Error fetching questions and answers by user:', error);
         return res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.getQuestionsAndAnswersFromCategory2 = async (req, res) => {
+    try {
+        const { categoryName } = req.params; // Assuming categoryName is passed as a URL parameter
+
+        // Find the category by name and populate questions and answers
+        const category = await Category.findOne({ categoryName })
+            .populate({
+                path: 'questions',
+                populate: {
+                    path: 'answers',
+                    model: 'Answer'
+                }
+            });
+
+        if (!category) {
+            return res.status(404).json({ message: 'Category not found' });
+        }
+
+        // Return the category with populated questions and answers
+        return res.status(200).json({
+            message: 'Category retrieved successfully',
+            category
+        });
+    } catch (error) {
+        console.error('Error retrieving category', error);
+        return res.status(500).json({ message: 'Server error', error });
     }
 };
 

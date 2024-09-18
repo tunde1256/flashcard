@@ -27,6 +27,7 @@ router.get("/quiz-question/:userId/:category", userController.getQuizQuestions);
 router.post("/quiz-answer/:userId/:questionId", userController.submitTypedAnswers);
 
 router.get("/QA/:userId/:category", userController.getALLQA);
+router.get("/category1/:categoryName", userController.getQuestionsAndAnswersFromCategory2)
 
 router.delete('/flashcard/:userId/:questionId',userController.deleteFlashcard)
 router.put('/flashcard/:userId/:questionId',userController.updateFlashcard)
