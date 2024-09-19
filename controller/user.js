@@ -454,46 +454,79 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
     }
 };
 
-
 exports.getALLQA = async (req, res) => {
     try {
         const { userId, category } = req.params;
- 
-        // Log the request parameters to ensure they are being captured correctly
+
         console.log('Request params:', req.params);
- 
-        // Validate the User ID
+
         if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
             return res.status(400).json({ message: 'Valid User ID is required' });
         }
- 
-        // Build the query for questions
-        const query = { createdBy: userId };
+
+        // Fetch the category object if provided
+        let categoryId = null;
         if (category) {
-            query.category = new RegExp(category, 'i'); // Case-insensitive category match
+            const cat = await Category.findOne({ categoryName: new RegExp(`^${category}$`, 'i') });
+            categoryId = cat ? cat._id : null;
         }
- 
-        // Log the query to see what is being sent to MongoDB
+
+        const query = { createdBy: userId };
+        if (categoryId) {
+            query.category = categoryId;
+        }
+
         console.log('Query:', query);
- 
-        // Fetch questions and populate answers
+
         const questions = await Question.find(query)
             .populate({
-                path: 'answers',        // Populate answers field
-                select: 'answerText',   // Select only the answerText field from the Answer model
+                path: 'answers',
+                select: 'answerText',
+            })
+            .populate({
+                path: 'category',
+                select: 'categoryName'
             })
             .exec();
- 
+
+        console.log('Fetched questions:', questions);
+
         if (!questions || questions.length === 0) {
             return res.status(404).json({ message: 'No questions found' });
         }
- 
-        return res.status(200).json({ questions });
+
+        const questionIds = questions.map(q => q._id);
+        const userAnswers = await Answer.find({ questionId: { $in: questionIds }, createdBy: userId });
+
+        const answeredQuestionIds = new Set(userAnswers.map(a => a.questionId.toString()));
+        const totalQuestions = questions.length;
+        const answeredQuestions = answeredQuestionIds.size;
+        const progress = (answeredQuestions / totalQuestions) * 100;
+
+        const response = questions.map(question => ({
+            questionText: question.questionText,
+            answers: question.answers.map(answer => answer.answerText),
+            categoryName: question.category ? question.category.categoryName : 'Unknown Category',
+        }));
+
+        console.log('Response:', {
+            questions: response,
+            progress: `${progress.toFixed(2)}%`
+        });
+
+        return res.status(200).json({
+            questions: response,
+            progress: `${progress.toFixed(2)}%`
+        });
     } catch (error) {
         console.error('Error retrieving questions and answers:', error.message);
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
- };
+};
+
+
+
+
  
 
 
