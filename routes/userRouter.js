@@ -14,7 +14,7 @@ router.delete("/users/:userId", userController.deleteAllUsers); // Delete user
 router.post("/ask-question", userController.askQuestion); // Ask a question
 router.put("/update-answer", userController.updateAnswer); // Update an answer
 router.delete("/delete-answer", userController.deleteAnswer); // Delete an answer
-router.post("/create-question-answer", userController.createQuestionAndAnswer);
+router.post("/:userId/create-question-answer", userController.createQuestionAndAnswer);
 router.post("/createflashcard", userController.createQuestionAndAnswer2); // Create question and answer together
 router.get("/questions/:questionId", userController.getQuestionAndAnswers); // Get all answers for a question with pagination
 router.get("/answers", userController.getAllAnswers); // Get all answers for

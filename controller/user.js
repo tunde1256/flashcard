@@ -328,9 +328,11 @@ exports.deleteAnswer = async (req, res) => {
 
 exports.createQuestionAndAnswer = async (req, res) => {
     try {
-        console.log('Request body:', req.body); // Log the incoming request body
+        console.log('Request body:', req.body);
+        console.log('Request params:', req.params);
 
-        const { userId, questionText, answerText, category } = req.body;
+        const { questionText, answerText, category } = req.body;
+        const { userId } = req.params; // Extract userId from URL params
 
         // Validate input
         if (!userId || !questionText || !answerText || !category) {
@@ -346,8 +348,8 @@ exports.createQuestionAndAnswer = async (req, res) => {
         // Find or create the category
         let categoryDoc = await Category.findOne({ categoryName: category });
         if (!categoryDoc) {
-            // Create the category if it doesn't exist
             categoryDoc = new Category({ categoryName: category });
+            await categoryDoc.save();
         }
 
         // Add the question and answer to the category document
@@ -359,9 +361,9 @@ exports.createQuestionAndAnswer = async (req, res) => {
         // Create and save the new question
         const newQuestion = new Question({
             question: questionText,
-            answer:answerText,
+            answer: answerText,
             createdBy: userId,
-            category: categoryDoc._id // Use the ObjectId of the category
+            category: categoryDoc._id
         });
         await newQuestion.save();
 
@@ -377,21 +379,23 @@ exports.createQuestionAndAnswer = async (req, res) => {
         newQuestion.answers.push(newAnswer._id);
         await newQuestion.save();
 
+        // Get the total number of questions in the category
+        const numberOfQuestions = categoryDoc.questions.length;
+
+        // Return response
         return res.status(201).json({
             message: 'Question and answer created successfully and added to category',
             question: newQuestion,
             answer: newAnswer,
-            category: categoryDoc
+            category: categoryDoc,
+            numberOfQuestions: numberOfQuestions // Include the number of questions in the category
         });
 
     } catch (error) {
-        console.error('Error creating question and answer', error);
+        console.error('Error creating question and answer:', error);
         return res.status(500).json({ message: 'Server error', error });
     }
 };
-
-
-
 
 
 
@@ -602,15 +606,17 @@ exports.getAllCategories = async (req, res) => {
 
 exports.getQuestionsAndAnswersFromCategory2 = async (req, res) => {
     try {
-        const { categoryName } = req.params; // Assuming categoryName is passed as a URL parameter
+        const { categoryName, userId } = req.params; // Assuming both categoryName and userId are passed as URL parameters
 
-        // Find the category by name and populate questions and answers
+        // Find the category by name and filter questions created by the user
         const category = await Category.findOne({ categoryName })
             .populate({
                 path: 'questions',
+                match: { createdBy: userId }, // Only return questions created by this user
                 populate: {
                     path: 'answers',
-                    model: 'Answer'
+                    model: 'Answer',
+                    match: { createdBy: userId } // Only return answers created by the user
                 }
             });
 
@@ -618,10 +624,35 @@ exports.getQuestionsAndAnswersFromCategory2 = async (req, res) => {
             return res.status(404).json({ message: 'Category not found' });
         }
 
-        // Return the category with populated questions and answers
+        // Initialize progress variables
+        let totalQuestions = category.questions ? category.questions.length : 0;
+        let correctAnswers = 0;
+
+        // Check if the questions array exists and is not empty
+        if (category.questions && category.questions.length > 0) {
+            // Iterate through questions and count correct answers
+            category.questions.forEach(question => {
+                if (question.answers && question.answers.length > 0) {
+                    question.answers.forEach(answer => {
+                        if (answer.isCorrect) { // Assuming you have an 'isCorrect' field on answers
+                            correctAnswers++;
+                        }
+                    });
+                }
+            });
+        }
+
+        // Calculate progress percentage
+        const progress = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+
+        // Return the category name, questions, and progress
         return res.status(200).json({
             message: 'Category retrieved successfully',
-            category
+            categoryName: category.categoryName, // Returning the category name
+            questions: category.questions || [], // Returning the user's questions and answers
+            progress: `${progress.toFixed(2)}%`, // Returning progress as a percentage
+            totalQuestions: totalQuestions,
+            correctAnswers: correctAnswers
         });
     } catch (error) {
         console.error('Error retrieving category', error);
@@ -901,9 +932,9 @@ exports.updateUser = async(req, res, next) => {
     }
     exports.getQuizQuestions = async (req, res) => {
         try {
-            const { userId } = req.params; // UserId and category in params
-            const { category } = req.params; // Use category from query parameters
+            const { userId, category } = req.params; // Assuming both userId and category are passed as URL parameters
     
+            // Check if both userId and category are provided
             if (!userId) {
                 return res.status(400).json({ message: 'User ID is required' });
             }
@@ -912,32 +943,39 @@ exports.updateUser = async(req, res, next) => {
                 return res.status(400).json({ message: 'Category is required' });
             }
     
-            // Fetch questions by category and userId, limit to 10 for the quiz
+            // Fetch up to 10 questions by category and userId
             const questions = await Question.find({ category, createdBy: userId }).limit(10);
     
+            // Check if no questions were found
             if (questions.length === 0) {
                 return res.status(404).json({ message: 'No questions available in this category' });
             }
     
-            // Fetch answers related to the fetched questions
+            // Get the IDs of the fetched questions
             const questionIds = questions.map(q => q._id);
-            const answers = await Answer.find({ questionId: { $in: questionIds }, userId });
+    
+            // Fetch answers associated with these questions by userId
+            const answers = await Answer.find({ questionId: { $in: questionIds }, createdBy: userId });
     
             // Calculate progress based on answered questions
             const totalQuestions = questions.length;
             const answeredQuestions = answers.length;
             const progress = (answeredQuestions / totalQuestions) * 100;
     
+            // Return the questions and progress
             return res.status(200).json({
                 message: 'Quiz questions retrieved successfully',
                 questions,
-                progress: `${progress.toFixed(2)}%` // Return progress as percentage
+                progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
+                totalQuestions: totalQuestions,
+                answeredQuestions: answeredQuestions
             });
         } catch (error) {
             console.error('Error fetching quiz questions:', error);
-            return res.status(500).json({ message: 'Server error' });
+            return res.status(500).json({ message: 'Server error', error });
         }
     };
+    
     exports.submitTypedAnswers = async (req, res) => {
         try {
             const { answers } = req.body;  // Array of submitted answers
