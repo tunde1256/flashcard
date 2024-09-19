@@ -454,7 +454,7 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
     }
 };
 
-exports.getALLQA= async (req, res) => {
+exports.getALLQA = async (req, res) => {
     try {
         const { userId, category } = req.params;
 
@@ -473,6 +473,20 @@ exports.getALLQA= async (req, res) => {
             .populate('createdBy', 'name') // Optionally populate user details if needed
             .exec();
 
+        if (questions.length === 0) {
+            return res.status(404).json({ message: 'No questions found in the category' });
+        }
+
+        // Fetch user's answers for these questions
+        const questionIds = questions.map(q => q._id);
+        const userAnswers = await Answer.find({ questionId: { $in: questionIds }, createdBy: userId });
+        
+        // Calculate progress
+        const answeredQuestionIds = new Set(userAnswers.map(a => a.questionId.toString()));
+        const totalQuestions = questions.length;
+        const answeredQuestions = answeredQuestionIds.size;
+        const progress = (answeredQuestions / totalQuestions) * 100;
+
         // Format response
         const formattedQuestions = questions.map(q => ({
             questionText: q.question,
@@ -484,13 +498,15 @@ exports.getALLQA= async (req, res) => {
             createdBy: q.createdBy // Optionally include user details if populated
         }));
 
-        return res.status(200).json({ questions: formattedQuestions });
+        return res.status(200).json({
+            questions: formattedQuestions,
+            progress: `${progress.toFixed(2)}%` // Include progress in response
+        });
     } catch (error) {
         console.error('Error retrieving questions and answers:', error);
         return res.status(500).json({ message: 'Server error', error });
     }
 };
-
 
 
 
