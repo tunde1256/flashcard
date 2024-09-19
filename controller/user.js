@@ -454,73 +454,40 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
     }
 };
 
-exports.getALLQA = async (req, res) => {
+exports.getALLQA= async (req, res) => {
     try {
         const { userId, category } = req.params;
 
-        console.log('Request params:', req.params);
-
-        if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ message: 'Valid User ID is required' });
+        // Find the category
+        const categoryDoc = await Category.findOne({ categoryName: category });
+        if (!categoryDoc) {
+            return res.status(404).json({ message: 'Category not found' });
         }
 
-        // Fetch the category object if provided
-        let categoryId = null;
-        if (category) {
-            const cat = await Category.findOne({ categoryName: new RegExp(`^${category}$`, 'i') });
-            categoryId = cat ? cat._id : null;
-        }
-
-        const query = { createdBy: userId };
-        if (categoryId) {
-            query.category = categoryId;
-        }
-
-        console.log('Query:', query);
-
-        const questions = await Question.find(query)
+        // Find questions in the category
+        const questions = await Question.find({ category: categoryDoc._id })
             .populate({
                 path: 'answers',
-                select: 'answerText',
+                select: 'answerText isCorrect createdAt' // Select the fields you want from the Answer model
             })
-            .populate({
-                path: 'category',
-                select: 'categoryName'
-            })
+            .populate('createdBy', 'name') // Optionally populate user details if needed
             .exec();
 
-        console.log('Fetched questions:', questions);
-
-        if (!questions || questions.length === 0) {
-            return res.status(404).json({ message: 'No questions found' });
-        }
-
-        const questionIds = questions.map(q => q._id);
-        const userAnswers = await Answer.find({ questionId: { $in: questionIds }, createdBy: userId });
-
-        const answeredQuestionIds = new Set(userAnswers.map(a => a.questionId.toString()));
-        const totalQuestions = questions.length;
-        const answeredQuestions = answeredQuestionIds.size;
-        const progress = (answeredQuestions / totalQuestions) * 100;
-
-        const response = questions.map(question => ({
-            questionText: question.questionText,
-            answers: question.answers.map(answer => answer.answerText),
-            categoryName: question.category ? question.category.categoryName : 'Unknown Category',
+        // Format response
+        const formattedQuestions = questions.map(q => ({
+            questionText: q.question,
+            answers: q.answers.map(a => ({
+                answerText: a.answerText,
+                isCorrect: a.isCorrect,
+                createdAt: a.createdAt
+            })),
+            createdBy: q.createdBy // Optionally include user details if populated
         }));
 
-        console.log('Response:', {
-            questions: response,
-            progress: `${progress.toFixed(2)}%`
-        });
-
-        return res.status(200).json({
-            questions: response,
-            progress: `${progress.toFixed(2)}%`
-        });
+        return res.status(200).json({ questions: formattedQuestions });
     } catch (error) {
-        console.error('Error retrieving questions and answers:', error.message);
-        return res.status(500).json({ message: 'Server error', error: error.message });
+        console.error('Error retrieving questions and answers:', error);
+        return res.status(500).json({ message: 'Server error', error });
     }
 };
 

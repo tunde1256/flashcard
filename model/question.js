@@ -6,7 +6,7 @@ const questionSchema = new Schema({
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     category: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
-    answers: [{ type: Schema.Types.ObjectId, ref: 'Answer' }] // Storing references to answers
+    answers: [{ type: Schema.Types.ObjectId, ref: 'Answer' }]
 });
 
 const Question = mongoose.model('Question', questionSchema);
