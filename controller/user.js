@@ -574,23 +574,45 @@ exports.getALLQA = async (req, res) => {
 
 exports.getAllCategories = async (req, res) => {
     try {
-        // Fetch all distinct category names from the Category model
-        const categoryNames = await Category.find().distinct('categoryName');
+        // Fetch all categories along with their questions
+        const categories = await Category.find();
 
         // Check if any categories are found
-        if (categoryNames.length === 0) {
+        if (categories.length === 0) {
             return res.status(404).json({ message: 'No categories found' });
         }
 
-        // Return the category names
+        // Initialize an array to hold category information
+        const categoryData = categories.map(category => {
+            // Get all the questions within the category
+            const questions = category.questions.map(q => ({
+                questionText: q.questionText,
+                answerText: q.answerText
+            }));
+
+            // Calculate progress: how many questions have an answerText
+            const totalQuestions = questions.length;
+            const answeredQuestions = questions.filter(q => q.answerText && q.answerText.trim() !== '').length;
+            const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
+
+            return {
+                categoryName: category.categoryName,
+                totalQuestions: totalQuestions,
+                answeredQuestions: answeredQuestions,
+                progress: `${progress.toFixed(2)}%`,  // Format progress as percentage
+                questions
+            };
+        });
+
+        // Return the category information with question texts, answer texts, and progress
         return res.status(200).json({
-            message: 'Categories retrieved successfully',
-            categories: categoryNames
+            message: 'Categories, questions, and progress retrieved successfully',
+            categories: categoryData
         });
 
     } catch (error) {
         // Log error and send a 500 response
-        logger.error('Error fetching categories:', error);
+        console.error('Error fetching categories, questions, and answers:', error);
         return res.status(500).json({ message: 'Server error' });
     }
 };
@@ -926,7 +948,7 @@ exports.updateUser = async(req, res, next) => {
     }
     exports.getQuizQuestions = async (req, res) => {
         try {
-            const { userId, category } = req.params; // Assuming both userId and category are passed as URL parameters
+            const { userId, category } = req.params; // Get userId and category from URL parameters
     
             // Check if both userId and category are provided
             if (!userId) {
@@ -937,38 +959,44 @@ exports.updateUser = async(req, res, next) => {
                 return res.status(400).json({ message: 'Category is required' });
             }
     
-            // Fetch up to 10 questions by category and userId
-            const questions = await Question.find({ category, createdBy: userId }).limit(10);
+            // Fetch the category with case-insensitive comparison
+            const categoryData = await Category.findOne({
+                categoryName: { $regex: new RegExp(`^${category}$`, 'i') } // Case-insensitive search
+            });
     
-            // Check if no questions were found
+            // Check if category exists
+            if (!categoryData) {
+                return res.status(404).json({ message: 'Category not found' });
+            }
+    
+            // Check if category contains questions
+            const questions = categoryData.questions;
             if (questions.length === 0) {
                 return res.status(404).json({ message: 'No questions available in this category' });
             }
     
-            // Get the IDs of the fetched questions
-            const questionIds = questions.map(q => q._id);
-    
-            // Fetch answers associated with these questions by userId
-            const answers = await Answer.find({ questionId: { $in: questionIds }, createdBy: userId });
-    
-            // Calculate progress based on answered questions
+            // Return only questionText and calculate progress
             const totalQuestions = questions.length;
-            const answeredQuestions = answers.length;
-            const progress = (answeredQuestions / totalQuestions) * 100;
+            const answeredQuestions = 0; // For now, assume no answers are submitted
+            const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
     
-            // Return the questions and progress
+            // Return the questions (only questionText) and progress
             return res.status(200).json({
                 message: 'Quiz questions retrieved successfully',
-                questions,
+                questions: questions.map(q => ({
+                    questionText: q.questionText
+                })),
                 progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
-                totalQuestions: totalQuestions,
-                answeredQuestions: answeredQuestions
+                totalQuestions,
+                answeredQuestions
             });
         } catch (error) {
             console.error('Error fetching quiz questions:', error);
             return res.status(500).json({ message: 'Server error', error });
         }
     };
+    
+    
 
 
 //     exports.submitTypedAnswer = async (req, res) => {
@@ -1045,11 +1073,6 @@ exports.submitTypedAnswer = async (req, res) => {
             return res.status(404).json({ message: 'No correct answer found for this question' });
         }
 
-        // Ensure userAnswer is provided
-        if (!userAnswer) {
-            return res.status(400).json({ message: 'User answer is missing' });
-        }
-
         // Compare user's answer with the correct answer in the Answer model (case-insensitive and trimmed)
         const isCorrect = correctAnswerEntry.answerText.trim().toLowerCase() === userAnswer.trim().toLowerCase();
 
@@ -1062,12 +1085,24 @@ exports.submitTypedAnswer = async (req, res) => {
         });
         await newAnswerSubmission.save();
 
-        // Return the result of the answer
+        // Fetch all questions in the same category as the current question
+        const totalQuestionsInCategory = await Question.countDocuments({ category: question.category });
+        
+        // Fetch all answered questions in this category by this user
+        const answeredQuestionsInCategory = await Answer.countDocuments({ userId, questionId: { $in: totalQuestionsInCategory } });
+
+        // Calculate progress
+        const progress = (answeredQuestionsInCategory / totalQuestionsInCategory) * 100;
+
+        // Return the result of the answer and progress
         res.status(200).json({
             message: 'Answer submitted successfully',
             correctAnswer: correctAnswerEntry.answerText,
             userAnswer,
-            correct: isCorrect
+            correct: isCorrect,
+            totalQuestions: totalQuestionsInCategory,
+            answeredQuestions: answeredQuestionsInCategory,
+            progress: `${progress.toFixed(2)}%`
         });
 
     } catch (error) {
