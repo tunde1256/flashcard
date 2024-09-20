@@ -24,7 +24,7 @@ router.get("/category/:category",userController.getAllQuestionsAndAnswersByCateg
 ); //
  router.get("/categories/:userId", userController.getAllCategories); // Search for questions by title, description, or answer text
 router.get("/quiz-question/:userId/:category", userController.getQuizQuestions);
-router.post("/quiz-answer/:userId/:questionId", userController.submitTypedAnswers);
+router.post("/quiz-answer/:userId/:questionId", userController.submitTypedAnswer);
 
 router.get("/QA/:userId/:category", userController.getALLQA);
 router.get("/category1/:categoryName", userController.getQuestionsAndAnswersFromCategory2)

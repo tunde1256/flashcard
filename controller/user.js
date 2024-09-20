@@ -570,55 +570,33 @@ exports.getALLQA = async (req, res) => {
 
 
 
-// // get all questions and answers by category
+// // get all questions and answers by categoryconst Category = require('../models/Category'); // Adjust the path as necessary
+
 exports.getAllCategories = async (req, res) => {
     try {
-        const { userId } = req.params; // userId from query parameters
-        if (!userId) {
-            return res.status(400).json({ message: 'User ID is required' });
+        // Fetch all distinct category names from the Category model
+        const categoryNames = await Category.find().distinct('categoryName');
+
+        // Check if any categories are found
+        if (categoryNames.length === 0) {
+            return res.status(404).json({ message: 'No categories found' });
         }
 
-        // Find all distinct categories for the user's questions
-        const categories = await Question.find({ createdBy: userId }).distinct('category');
-
-        if (categories.length === 0) {
-            return res.status(404).json({ message: 'No categories found for this user' });
-        }
-
-        // Fetch all questions and answers for the user
-        const questions = await Question.find({ createdBy: userId, category: { $in: categories } });
-        const questionIds = questions.map(question => question._id);
-        const answers = await Answer.find({ questionId: { $in: questionIds } });
-
-        // Calculate progress for each category
-        const progressByCategory = categories.map(category => {
-            const questionsInCategory = questions.filter(q => q.category === category);
-            const answeredQuestions = answers.filter(a => questionsInCategory.some(q => q._id.equals(a.questionId)));
-            const totalQuestions = questionsInCategory.length;
-            const answeredCount = answeredQuestions.length;
-            const progress = totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0;
-
-            return {
-                category,
-                totalQuestions,
-                answeredCount,
-                progress: `${progress.toFixed(2)}%`
-            };
-        });
-
+        // Return the category names
         return res.status(200).json({
-            message: 'Questions and answers retrieved successfully',
-            categories,
-            questions,
-            answers,
-            progressByCategory
+            message: 'Categories retrieved successfully',
+            categories: categoryNames
         });
 
     } catch (error) {
-        logger.error('Error fetching questions and answers by user:', error);
+        // Log error and send a 500 response
+        logger.error('Error fetching categories:', error);
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
+
+
 
 exports.getQuestionsAndAnswersFromCategory2 = async (req, res) => {
     try {
@@ -991,105 +969,113 @@ exports.updateUser = async(req, res, next) => {
             return res.status(500).json({ message: 'Server error', error });
         }
     };
-    
-    exports.submitTypedAnswers = async (req, res) => {
-        try {
-            const { answers } = req.body;  // Array of submitted answers
-            const { userId, questionId } = req.params;  // User ID and questionId from the params
-    
-            // Validate input
-            if (!userId || !questionId || !answers || !Array.isArray(answers)) {
-                return res.status(400).json({ message: 'User ID, question ID, and answers are required' });
-            }
-    
-            let correctCount = 0;  // Counter for correct answers
-            const results = [];
-    
-            // Find the question by questionId and populate its answers
-            const question = await Question.findById(questionId).populate('answers');
-            console.log('Question found:', question);
-    
-            if (!question) {
-                return res.status(404).json({ message: 'Question not found' });
-            }
-    
-            // Loop through each submitted answer
-            for (const answer of answers) {
-                const { userAnswer } = answer;
-    
-                console.log(`Processing answer for questionId: ${questionId}`);
-                console.log(`User answer: ${userAnswer}`);  // Log userAnswer
-    
-                // Find the correct answer in the Answer model associated with the questionId
-                const correctAnswerEntry = question.answers.find(ans => ans.isCorrect);
-                console.log('Correct answer entry:', correctAnswerEntry);
-    
-                if (!correctAnswerEntry) {
-                    results.push({
-                        questionId,
-                        correct: false,
-                        error: 'No correct answer found for this question'
-                    });
-                    continue;
-                }
-    
-                // Ensure userAnswer is provided
-                if (!userAnswer) {
-                    console.log(`User answer for questionId ${questionId} is missing`);
-                    results.push({
-                        questionId,
-                        correct: false,
-                        error: 'User answer is missing'
-                    });
-                    continue;
-                }
-    
-                // Compare user's answer with the correct answer in the Answer model (case-insensitive and trimmed)
-                const isCorrect = correctAnswerEntry.answerText.trim().toLowerCase() === userAnswer.trim().toLowerCase();
-                console.log(`User answer: ${userAnswer}`);
-                console.log(`Correct answer: ${correctAnswerEntry.answerText}`);
-                console.log(`Is correct: ${isCorrect}`);
-    
-                // Increment correct answer count if the user's answer is correct
-                if (isCorrect) correctCount++;
-    
-                // Save the user's answer submission in the Answer model
-                const newAnswerSubmission = new Answer({
-                    userId,
-                    questionId,
-                    answerText: userAnswer,
-                    isCorrect
-                });
-                await newAnswerSubmission.save();
-    
-                // Store the result of this question
-                results.push({
-                    questionId,
-                    correctAnswer: correctAnswerEntry.answerText,
-                    userAnswer,
-                    correct: isCorrect
-                });
-            }
-    
-            // Calculate progress as a percentage of correct answers
-            const totalQuestions = answers.length;
-            const progress = (correctCount / totalQuestions) * 100;
-    
-            // Return the results and progress
-            res.status(200).json({
-                message: 'Quiz results submitted successfully',
-                results,
-                correctCount,
-                totalQuestions,
-                progress: `${progress.toFixed(2)}%`
-            });
-    
-        } catch (error) {
-            console.error('Error submitting quiz answers:', error);
-            res.status(500).json({ message: 'Server error' });
+
+
+//     exports.submitTypedAnswer = async (req, res) => {
+//     try {
+//         const { userAnswer } = req.body;  // Single answer submitted as a string
+//         const { userId, questionId } = req.params;  // User ID and questionId from the params
+
+//         // Validate input
+//         if (!userId || !questionId || typeof userAnswer !== 'string') {
+//             return res.status(400).json({ message: 'User ID, question ID, and answer are required' });
+//         }
+
+//         // Find the question by questionId and populate its answers
+//         const question = await Question.findById(questionId).populate('answers');
+//         if (!question) {
+//             return res.status(404).json({ message: 'Question not found' });
+//         }
+
+//         // Find the correct answer in the Answer model associated with the questionId
+//         const correctAnswerEntry = question.answers.find(ans => ans.isCorrect);
+//         if (!correctAnswerEntry) {
+//             return res.status(404).json({ message: 'No correct answer found for this question' });
+//         }
+
+//         // Ensure userAnswer is provided
+//         if (!userAnswer) {
+//             return res.status(400).json({ message: 'User answer is missing' });
+//         }
+
+//         // Compare user's answer with the correct answer in the Answer model (case-insensitive and trimmed)
+//         const isCorrect = correctAnswerEntry.answerText.trim().toLowerCase() === userAnswer.trim().toLowerCase();
+
+//         // Save the user's answer submission in the Answer model
+//         const newAnswerSubmission = new Answer({
+//             userId,
+//             questionId,
+//             answerText: userAnswer,
+//             isCorrect
+//         });
+//         await newAnswerSubmission.save();
+
+//         // Return the result of the answer
+//         res.status(200).json({
+//             message: 'Answer submitted successfully',
+//             correctAnswer: correctAnswerEntry.answerText,
+//             userAnswer,
+//             correct: isCorrect
+//         });
+
+//     } catch (error) {
+//         console.error('Error submitting answer:', error);
+//         res.status(500).json({ message: 'Server error' });
+//     }
+// };
+exports.submitTypedAnswer = async (req, res) => {
+    try {
+        const { userAnswer } = req.body;  // Single answer submitted as a string
+        const { userId, questionId } = req.params;  // User ID and questionId from the params
+
+        // Validate input
+        if (!userId || !questionId || typeof userAnswer !== 'string') {
+            return res.status(400).json({ message: 'User ID, question ID, and answer are required' });
         }
-    };
-    
+
+        // Find the question by questionId and populate its answers
+        const question = await Question.findById(questionId).populate('answers');
+        if (!question) {
+            return res.status(404).json({ message: 'Question not found' });
+        }
+
+        // Find the correct answer in the Answer model associated with the questionId
+        const correctAnswerEntry = question.answers.find(ans => ans.isCorrect);
+        if (!correctAnswerEntry) {
+            return res.status(404).json({ message: 'No correct answer found for this question' });
+        }
+
+        // Ensure userAnswer is provided
+        if (!userAnswer) {
+            return res.status(400).json({ message: 'User answer is missing' });
+        }
+
+        // Compare user's answer with the correct answer in the Answer model (case-insensitive and trimmed)
+        const isCorrect = correctAnswerEntry.answerText.trim().toLowerCase() === userAnswer.trim().toLowerCase();
+
+        // Save the user's answer submission in the Answer model
+        const newAnswerSubmission = new Answer({
+            userId,
+            questionId,
+            answerText: userAnswer,
+            isCorrect
+        });
+        await newAnswerSubmission.save();
+
+        // Return the result of the answer
+        res.status(200).json({
+            message: 'Answer submitted successfully',
+            correctAnswer: correctAnswerEntry.answerText,
+            userAnswer,
+            correct: isCorrect
+        });
+
+    } catch (error) {
+        console.error('Error submitting answer:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
     
     
     
