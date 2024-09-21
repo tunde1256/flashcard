@@ -1050,71 +1050,75 @@ exports.updateUser = async(req, res, next) => {
 //         console.error('Error submitting answer:', error);
 //         res.status(500).json({ message: 'Server error' });
 //     }
-// };
+// };const Question = require('../models/question');  // Assuming you have a separate Question model
+
+
+
 exports.submitTypedAnswer = async (req, res) => {
     try {
-        const { userAnswer } = req.body;  // Single answer submitted as a string
-        const { userId, questionId } = req.params;  // User ID and questionId from the params
+        const { userId, questionId } = req.params; // Get userId and questionId from URL parameters
+        const { userAnswer } = req.body; // Get the user's answer from the request body
 
-        // Validate input
-        if (!userId || !questionId || typeof userAnswer !== 'string') {
-            return res.status(400).json({ message: 'User ID, question ID, and answer are required' });
+        // Validate request data
+        if (!userId) {
+            return res.status(400).json({ message: 'User ID is required' });
         }
 
-        // Find the question by questionId and populate its answers
-        const question = await Question.findById(questionId).populate('answers');
+        if (!mongoose.Types.ObjectId.isValid(questionId)) {
+            return res.status(400).json({ message: 'Invalid Question ID format' });
+        }
+
+        if (!userAnswer || typeof userAnswer !== 'string') {
+            return res.status(400).json({ message: 'Answer is required and must be a string' });
+        }
+
+        // Fetch the question by questionId
+        const question = await Question.findById(questionId);
+
+        // Check if question exists
         if (!question) {
             return res.status(404).json({ message: 'Question not found' });
         }
 
-        // Find the correct answer in the Answer model associated with the questionId
-        const correctAnswerEntry = question.answers.find(ans => ans.isCorrect);
-        if (!correctAnswerEntry) {
-            return res.status(404).json({ message: 'No correct answer found for this question' });
+        // Fetch the correct answer from the Answer collection
+        const answerRecord = await Answer.findOne({ questionId });
+
+        // Check if answer exists in the Answer collection
+        if (!answerRecord || !answerRecord.answerText) {
+            return res.status(404).json({ message: 'Answer text not found in the Answer collection' });
         }
 
-        // Compare user's answer with the correct answer in the Answer model (case-insensitive and trimmed)
-        const isCorrect = correctAnswerEntry.answerText.trim().toLowerCase() === userAnswer.trim().toLowerCase();
+        // Compare the user's answer with the correct answer
+        const correctAnswer = answerRecord.answerText.trim().toLowerCase();
+        const isCorrect = correctAnswer === userAnswer.trim().toLowerCase();
 
-        // Save the user's answer submission in the Answer model
-        const newAnswerSubmission = new Answer({
+        // Get the total number of questions in the collection
+        const totalQuestions = await Question.countDocuments();
+
+        // Calculate the number of questions the user has answered
+        const answeredQuestionsCount = await Answer.countDocuments({
             userId,
-            questionId,
-            answerText: userAnswer,
-            isCorrect
         });
-        await newAnswerSubmission.save();
 
-        // Fetch all questions in the same category as the current question
-        const totalQuestionsInCategory = await Question.countDocuments({ category: question.category });
-        
-        // Fetch all answered questions in this category by this user
-        const answeredQuestionsInCategory = await Answer.countDocuments({ userId, questionId: { $in: totalQuestionsInCategory } });
+        const progress = totalQuestions > 0 ? (answeredQuestionsCount / totalQuestions) * 100 : 0;
 
-        // Calculate progress
-        const progress = (answeredQuestionsInCategory / totalQuestionsInCategory) * 100;
-
-        // Return the result of the answer and progress
-        res.status(200).json({
-            message: 'Answer submitted successfully',
-            correctAnswer: correctAnswerEntry.answerText,
-            userAnswer,
-            correct: isCorrect,
-            totalQuestions: totalQuestionsInCategory,
-            answeredQuestions: answeredQuestionsInCategory,
-            progress: `${progress.toFixed(2)}%`
+        // Return the response without saving the answer
+        return res.status(200).json({
+            message: 'Answer compared successfully',
+            correctAnswer: correctAnswer,
+            isCorrect,
+            totalQuestions,
+            answeredQuestions: answeredQuestionsCount,
+            progress: `${progress.toFixed(2)}%` // Return progress as a percentage
         });
 
     } catch (error) {
-        console.error('Error submitting answer:', error);
-        res.status(500).json({ message: 'Server error' });
+        console.error('Error comparing quiz answer:', error);
+        return res.status(500).json({ message: 'Server error', error });
     }
 };
 
-    
-    
-    
-    
+
     
 // Get All Users
 exports.getAllUsers = async (req, res) => {
@@ -1234,3 +1238,49 @@ exports.updateFlashcard = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
+let tokenBlacklist = []; // In-memory blacklist (for production, use a persistent store like Redis)
+
+exports.logoutUser = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        
+        // Check if the Authorization header is present
+        if (!authHeader) {
+            logger.warn('Logout failed: No token provided');
+            return res.status(401).json({ message: 'No token provided' });
+        }
+
+        // Extract the token from the "Bearer <token>" format
+        const token = authHeader.split(' ')[1];
+
+        // Verify the token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // Blacklist the token (in a real system, use Redis or a DB to persist this)
+        tokenBlacklist.push(token);
+        logger.info('User logged out successfully', { userId: decoded.id });
+
+        return res.status(200).json({ message: 'Logged out successfully' });
+    } catch (error) {
+        logger.error('Error during logout', { error });
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// Middleware to check if the token is blacklisted
+exports.checkBlacklist = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ message: 'Authorization token is missing.' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    
+    // Check if the token is in the blacklist
+    if (tokenBlacklist.includes(token)) {
+        return res.status(401).json({ message: 'Token has been invalidated. Please log in again.' });
+    }
+
+    next();
+};
+
