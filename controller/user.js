@@ -458,36 +458,38 @@ exports.getALLQA = async (req, res) => {
     try {
         const { userId, category } = req.params;
 
-        // Find the category
+        // Find the category by name
         const categoryDoc = await Category.findOne({ categoryName: category });
         if (!categoryDoc) {
             return res.status(404).json({ message: 'Category not found' });
         }
 
-        // Find questions in the category
+        // Find questions under the specified category
         const questions = await Question.find({ category: categoryDoc._id })
             .populate({
                 path: 'answers',
-                select: 'answerText isCorrect createdAt' // Select the fields you want from the Answer model
+                select: 'answerText isCorrect createdAt' // Only return specific fields from the Answer model
             })
-            .populate('createdBy', 'name') // Optionally populate user details if needed
+            .populate('createdBy', 'name') // Optionally populate details of the user who created the question
             .exec();
 
         if (questions.length === 0) {
-            return res.status(404).json({ message: 'No questions found in the category' });
+            return res.status(404).json({ message: 'No questions found in this category' });
         }
 
-        // Fetch user's answers for these questions
+        // Fetch the answers provided by the user for the retrieved questions
         const questionIds = questions.map(q => q._id);
         const userAnswers = await Answer.find({ questionId: { $in: questionIds }, createdBy: userId });
-        
-        // Calculate progress
+
+        // Track answered questions
         const answeredQuestionIds = new Set(userAnswers.map(a => a.questionId.toString()));
+
+        // Calculate progress (answered vs total questions)
         const totalQuestions = questions.length;
         const answeredQuestions = answeredQuestionIds.size;
         const progress = (answeredQuestions / totalQuestions) * 100;
 
-        // Format response
+        // Format the response data
         const formattedQuestions = questions.map(q => ({
             questionText: q.question,
             answers: q.answers.map(a => ({
@@ -495,13 +497,17 @@ exports.getALLQA = async (req, res) => {
                 isCorrect: a.isCorrect,
                 createdAt: a.createdAt
             })),
-            createdBy: q.createdBy // Optionally include user details if populated
+            createdBy: q.createdBy?.name // Include creator's name if populated
         }));
 
+        // Return the formatted response with questions, answers, and progress
         return res.status(200).json({
             questions: formattedQuestions,
-            progress: `${progress.toFixed(2)}%` // Include progress in response
+            progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
+            totalQuestions,
+            answeredQuestions
         });
+
     } catch (error) {
         console.error('Error retrieving questions and answers:', error);
         return res.status(500).json({ message: 'Server error', error });
@@ -946,11 +952,61 @@ exports.updateUser = async(req, res, next) => {
             return res.status(500).json({message: 'Server error'});
         }
     }
+    // exports.getQuizQuestions = async (req, res) => {
+    //     try {
+    //         const { userId, category } = req.params; // Get userId and category from URL parameters
+    
+    //         // Check if both userId and category are provided
+    //         if (!userId) {
+    //             return res.status(400).json({ message: 'User ID is required' });
+    //         }
+    
+    //         if (!category) {
+    //             return res.status(400).json({ message: 'Category is required' });
+    //         }
+    
+    //         // Fetch the category with case-insensitive comparison
+    //         const categoryData = await Category.findOne({
+    //             categoryName: { $regex: new RegExp(`^${category}$`, 'i') } // Case-insensitive search
+    //         });
+    
+    //         // Check if category exists
+    //         if (!categoryData) {
+    //             return res.status(404).json({ message: 'Category not found' });
+    //         }
+    
+    //         // Check if category contains questions
+    //         const questions = categoryData.questions;
+    //         if (questions.length === 0) {
+    //             return res.status(404).json({ message: 'No questions available in this category' });
+    //         }
+    
+    //         // Return only questionText and calculate progress
+    //         const totalQuestions = questions.length;
+    //         const answeredQuestions = 0; // For now, assume no answers are submitted
+    //         const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
+    
+    //         // Return the questions (only questionText) and progress
+    //         return res.status(200).json({
+    //             message: 'Quiz questions retrieved successfully',
+    //             questions: questions.map(q => ({
+    //                 questionText: q.questionText
+    //             })),
+    //             progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
+    //             totalQuestions,
+    //             answeredQuestions
+    //         });
+    //     } catch (error) {
+    //         console.error('Error fetching quiz questions:', error);
+    //         return res.status(500).json({ message: 'Server error', error });
+    //     }
+    // };
+    
     exports.getQuizQuestions = async (req, res) => {
         try {
-            const { userId, category } = req.params; // Get userId and category from URL parameters
+            const { userId, category } = req.params;
+            const { currentQuestionIndex } = req.query; // Track the index of the question being asked
     
-            // Check if both userId and category are provided
             if (!userId) {
                 return res.status(400).json({ message: 'User ID is required' });
             }
@@ -959,37 +1015,51 @@ exports.updateUser = async(req, res, next) => {
                 return res.status(400).json({ message: 'Category is required' });
             }
     
-            // Fetch the category with case-insensitive comparison
+            if (currentQuestionIndex === undefined || currentQuestionIndex === null) {
+                return res.status(400).json({ message: 'Current question index is required' });
+            }
+    
+            // Fetch the category and its questions directly
             const categoryData = await Category.findOne({
-                categoryName: { $regex: new RegExp(`^${category}$`, 'i') } // Case-insensitive search
+                categoryName: { $regex: new RegExp(`^${category}$`, 'i') }
             });
     
-            // Check if category exists
             if (!categoryData) {
                 return res.status(404).json({ message: 'Category not found' });
             }
     
-            // Check if category contains questions
             const questions = categoryData.questions;
+    
             if (questions.length === 0) {
                 return res.status(404).json({ message: 'No questions available in this category' });
             }
     
-            // Return only questionText and calculate progress
             const totalQuestions = questions.length;
-            const answeredQuestions = 0; // For now, assume no answers are submitted
+    
+            // Ensure currentQuestionIndex is within bounds
+            const questionIndex = parseInt(currentQuestionIndex, 10);
+            if (questionIndex >= totalQuestions) {
+                return res.status(400).json({ message: 'No more questions available' });
+            }
+    
+            // Get the current question based on the index
+            const currentQuestion = questions[questionIndex];
+    
+            // Calculate progress
+            const answeredQuestions = questionIndex; // Answered questions will be the current index
             const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
     
-            // Return the questions (only questionText) and progress
             return res.status(200).json({
-                message: 'Quiz questions retrieved successfully',
-                questions: questions.map(q => ({
-                    questionText: q.questionText
-                })),
+                message: 'Next question retrieved successfully',
+                question: {
+                    questionText: currentQuestion.questionText,
+                    questionId: currentQuestion._id
+                },
                 progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
                 totalQuestions,
                 answeredQuestions
             });
+    
         } catch (error) {
             console.error('Error fetching quiz questions:', error);
             return res.status(500).json({ message: 'Server error', error });
@@ -997,7 +1067,7 @@ exports.updateUser = async(req, res, next) => {
     };
     
     
-
+    
 
 //     exports.submitTypedAnswer = async (req, res) => {
 //     try {
@@ -1242,25 +1312,34 @@ let tokenBlacklist = []; // In-memory blacklist (for production, use a persisten
 
 exports.logoutUser = async (req, res) => {
     try {
+        // Get the token from the Authorization header
         const authHeader = req.headers.authorization;
-        
-        // Check if the Authorization header is present
+
+        // Check if the token is provided
         if (!authHeader) {
             logger.warn('Logout failed: No token provided');
-            return res.status(401).json({ message: 'No token provided' });
+            return res.status(400).json({ message: 'No token provided' });
         }
 
-        // Extract the token from the "Bearer <token>" format
+        // Extract the token (assuming it's in the format "Bearer <token>")
         const token = authHeader.split(' ')[1];
 
+        if (!token) {
+            logger.warn('Logout failed: Token is missing');
+            return res.status(400).json({ message: 'Token is missing' });
+        }
+
         // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            logger.info('Logout successful', { userId: decoded.id });
 
-        // Blacklist the token (in a real system, use Redis or a DB to persist this)
-        tokenBlacklist.push(token);
-        logger.info('User logged out successfully', { userId: decoded.id });
-
-        return res.status(200).json({ message: 'Logged out successfully' });
+            // No need to save or blacklist the token unless your app requires persistent token invalidation
+            return res.status(200).json({ message: 'Logged out successfully' });
+        } catch (error) {
+            logger.warn('Logout failed: Invalid token', { error });
+            return res.status(401).json({ message: 'Invalid token' });
+        }
     } catch (error) {
         logger.error('Error during logout', { error });
         return res.status(500).json({ message: 'Server error' });
@@ -1283,4 +1362,12 @@ exports.checkBlacklist = (req, res, next) => {
 
     next();
 };
+
+
+
+
+
+
+
+
 

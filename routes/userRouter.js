@@ -3,14 +3,14 @@ const router = express.Router();
 const userController = require("../controller/user");
 
 // User routes
-router.post('/register', userController.createUser); // User registration
+ router.post('/register', userController.createUser); // User registration
 
 router.post("/login", userController.loginUser); // User login
 router.get("/users", userController.getAllUsers); // Get all users with pagination
 router.put("/users/:userId", userController.updateUser); // Update user details
 router.delete("/users/:userId", userController.deleteAllUsers); // Delete user
 
-// Question and Answer routes
+// // Question and Answer routes
 router.post("/ask-question", userController.askQuestion); // Ask a question
 router.put("/update-answer", userController.updateAnswer); // Update an answer
 router.delete("/delete-answer", userController.deleteAnswer); // Delete an answer
@@ -21,8 +21,8 @@ router.get("/answers", userController.getAllAnswers); // Get all answers for
 router.post("/forgot-Password", userController.forgotPassword); // Forgot password)
 router.post("/reset-password", userController.resetPassword); // Reset password using token
 router.get("/category/:category",userController.getAllQuestionsAndAnswersByCategory
-); //
- router.get("/categories/:userId", userController.getAllCategories); // Search for questions by title, description, or answer text
+ ); //
+  router.get("/categories/:userId", userController.getAllCategories); // Search for questions by title, description, or answer text
 router.get("/quiz-question/:userId/:category", userController.getQuizQuestions);
 router.post("/quiz-answer/:userId/:questionId", userController.submitTypedAnswer);
 
@@ -30,8 +30,10 @@ router.get("/QA/:userId/:category", userController.getALLQA);
 router.get("/category1/:categoryName", userController.getQuestionsAndAnswersFromCategory2)
 
 router.delete('/flashcard/:userId/:questionId',userController.deleteFlashcard)
-router.put('/flashcard/:userId/:questionId',userController.updateFlashcard)
+ router.put('/flashcard/:userId/:questionId',userController.updateFlashcard)
 router.post('/logout', userController.logoutUser)
+
+
 
 /**
  * 
