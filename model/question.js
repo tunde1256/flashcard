@@ -2,11 +2,11 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const questionSchema = new Schema({
-    question: { type: String, required: true },
-    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    category: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now },
-    answers: [{ type: Schema.Types.ObjectId, ref: 'Answer' }]
+    question: String,
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+    answers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Answer' }],
+    createdAt: Date
 });
 
 const Question = mongoose.model('Question', questionSchema);

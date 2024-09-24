@@ -359,12 +359,13 @@ exports.createQuestionAndAnswer = async (req, res) => {
         await categoryDoc.save();
 
         // Create and save the new question
-        const newQuestion = new Question({
-            question: questionText,
-            answer: answerText,
-            createdBy: userId,
-            category: categoryDoc._id
-        });
+       const newQuestion = new Question({
+    question: questionText, // Use 'question' instead of 'questionText'
+    createdBy: userId,
+    category: categoryData._id, // Ensure correct category reference
+    createdAt: Date.now(),
+    answers: [] // Initialize answers array
+});
         await newQuestion.save();
 
         // Create and save the new answer
@@ -405,54 +406,91 @@ exports.createQuestionAndAnswer = async (req, res) => {
 // POST /api/user/create-question-answer
 exports.createQuestionAndAnswer2 = async (req, res) => {
     try {
-        const { userId, questionText, answerText, category } = req.body;
+        const { userId } = req.params; // Get userId from URL params
+        const { questionText, answerText, category } = req.body;
 
         // Validate input
         if (!userId || !questionText || !answerText || !category) {
-            logger.warn('Question and answer creation failed: Missing required fields', { userId, questionText, answerText, category });
+            logger.warn('Missing required fields', { userId, questionText, answerText, category });
             return res.status(400).json({ message: 'User ID, question text, answer text, and category are required' });
         }
+
+        // Log the userId for debugging
+        logger.info('Received userId from params:', { userId });
 
         // Check if the user exists
         const user = await User.findById(userId);
         if (!user) {
-            logger.warn('Question and answer creation failed: User not found', { userId });
+            logger.warn('User not found', { userId });
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Create and save the question
-        const newQuestion = new Question({
-            question: questionText,
-            createdBy: userId,
-            category,
-            answers: [] // Initialize as an empty array
-        });
-        await newQuestion.save();
+        logger.info('User ID used for creating category', { userId });
 
-        // Create and save the answer
-        const newAnswer = new Answer({
-            questionId: newQuestion._id,
+        // Check if the category exists or create a new one
+        let categoryData = await Category.findOne({ categoryName: { $regex: new RegExp(`^${category}$`, 'i') } });
+
+        // If category doesn't exist, create it
+        if (!categoryData) {
+            logger.info('Creating new category', { category, createdBy: userId });
+            categoryData = new Category({
+                categoryName: category,
+                createdBy: userId, // Ensure createdBy is set
+                questions: [] // Initialize questions array
+            });
+            await categoryData.save();
+            logger.info('New category created', { categoryData });
+        } else {
+            // If category exists, check if createdBy is set, and update it if necessary
+            if (!categoryData.createdBy) {
+                categoryData.createdBy = userId;
+                await categoryData.save();
+                logger.info('Added createdBy field to existing category', { categoryData });
+            }
+        }
+
+        // Save the questionText and answerText directly in the Category model
+        const questionAnswerObj = {
+            questionText,
             answerText,
             createdBy: userId,
+            createdAt: Date.now()
+        };
+
+        // Push the question and answer to the category's questions array
+        categoryData.questions.push(questionAnswerObj);
+        await categoryData.save(); // Save the updated category
+
+        logger.info('Question and answer created successfully', {
+            userId,
+            questionText,
+            answerText,
+            categoryId: categoryData._id
         });
-        await newAnswer.save();
 
-        // Update the question's answers array to include the new answer
-        newQuestion.answers.push(newAnswer._id);
-        await newQuestion.save(); // Save the question after updating its answers array
-
-        logger.info('Question and answer created successfully', { userId, questionId: newQuestion._id, answerId: newAnswer._id });
         return res.status(201).json({
             message: 'Question and answer created successfully',
-            question: newQuestion,
-            answer: newAnswer
+            questionText,
+            answerText,
+            category: categoryData
         });
 
     } catch (error) {
-        logger.error('Error creating question and answer', { error });
-        return res.status(500).json({ message: 'Server error' });
+        logger.error('Error creating question and answer', { error: error.message, stack: error.stack });
+        return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
+
+
+
+
+
+
+
+
+
+
 
 exports.getALLQA = async (req, res) => {
     try {
@@ -580,12 +618,19 @@ exports.getALLQA = async (req, res) => {
 
 exports.getAllCategories = async (req, res) => {
     try {
-        // Fetch all categories along with their questions
-        const categories = await Category.find();
+        const { userId } = req.params; // Get userId from request parameters
+
+        // Validate the userId
+        if (!userId) {
+            return res.status(400).json({ message: 'User ID is required' });
+        }
+
+        // Fetch categories created by the specific user
+        const categories = await Category.find({ createdBy: userId });
 
         // Check if any categories are found
         if (categories.length === 0) {
-            return res.status(404).json({ message: 'No categories found' });
+            return res.status(404).json({ message: 'No categories found for this user' });
         }
 
         // Initialize an array to hold category information
@@ -622,6 +667,9 @@ exports.getAllCategories = async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 };
+
+
+
 
 
 
@@ -1142,37 +1190,42 @@ exports.submitTypedAnswer = async (req, res) => {
             return res.status(400).json({ message: 'Answer is required and must be a string' });
         }
 
-        // Fetch the question by questionId
-        const question = await Question.findById(questionId);
+        // Fetch the question from the Question model
+        const question = await Question.findById(questionId).populate('answers'); // Populate answers if needed
 
-        // Check if question exists
         if (!question) {
             return res.status(404).json({ message: 'Question not found' });
+        }
+
+        // Check if the category is directly accessible from the question document
+        const category = question.category; // Assuming category is stored as an ObjectId reference
+        if (!category) {
+            return res.status(404).json({ message: 'Category not found for this question' });
         }
 
         // Fetch the correct answer from the Answer collection
         const answerRecord = await Answer.findOne({ questionId });
 
-        // Check if answer exists in the Answer collection
         if (!answerRecord || !answerRecord.answerText) {
-            return res.status(404).json({ message: 'Answer text not found in the Answer collection' });
+            return res.status(404).json({ message: 'Answer text not found' });
         }
 
         // Compare the user's answer with the correct answer
         const correctAnswer = answerRecord.answerText.trim().toLowerCase();
         const isCorrect = correctAnswer === userAnswer.trim().toLowerCase();
 
-        // Get the total number of questions in the collection
-        const totalQuestions = await Question.countDocuments();
+        // Calculate the total number of questions for this category
+        const totalQuestions = await Question.countDocuments({ category });
 
-        // Calculate the number of questions the user has answered
+        // Calculate how many questions the user has answered in this category
         const answeredQuestionsCount = await Answer.countDocuments({
             userId,
+            questionId: { $in: await Question.find({ category }).select('_id') }
         });
 
         const progress = totalQuestions > 0 ? (answeredQuestionsCount / totalQuestions) * 100 : 0;
 
-        // Return the response without saving the answer
+        // Return the response
         return res.status(200).json({
             message: 'Answer compared successfully',
             correctAnswer: correctAnswer,
