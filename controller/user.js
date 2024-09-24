@@ -1058,6 +1058,7 @@ exports.updateUser = async(req, res, next) => {
             const { userId, category } = req.params;
             const { currentQuestionIndex } = req.query; // Track the index of the question being asked
     
+            // Validate input
             if (!userId) {
                 return res.status(400).json({ message: 'User ID is required' });
             }
@@ -1087,24 +1088,25 @@ exports.updateUser = async(req, res, next) => {
     
             const totalQuestions = questions.length;
     
-            // Ensure currentQuestionIndex is within bounds
+            // Ensure currentQuestionIndex is a valid number and within bounds
             const questionIndex = parseInt(currentQuestionIndex, 10);
-            if (questionIndex >= totalQuestions) {
-                return res.status(400).json({ message: 'No more questions available' });
+    
+            if (isNaN(questionIndex) || questionIndex < 0 || questionIndex >= totalQuestions) {
+                return res.status(400).json({ message: 'Invalid question index' });
             }
     
             // Get the current question based on the index
             const currentQuestion = questions[questionIndex];
     
             // Calculate progress
-            const answeredQuestions = questionIndex; // Answered questions will be the current index
-            const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
+            const answeredQuestions = questionIndex + 1; // Add 1 to include the current question
+            const progress = (answeredQuestions / totalQuestions) * 100;
     
             return res.status(200).json({
                 message: 'Next question retrieved successfully',
                 question: {
                     questionText: currentQuestion.questionText,
-                    questionId: currentQuestion._id
+                    questionId: currentQuestion.questionId // Ensure the ID is returned
                 },
                 progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
                 totalQuestions,
@@ -1116,6 +1118,7 @@ exports.updateUser = async(req, res, next) => {
             return res.status(500).json({ message: 'Server error', error });
         }
     };
+    
     
     
     
@@ -1200,12 +1203,6 @@ exports.submitTypedAnswer = async (req, res) => {
             return res.status(404).json({ message: 'Question not found' });
         }
 
-        // Check if the category is directly accessible from the question document
-        const category = question.category; // Assuming category is stored as an ObjectId reference
-        if (!category) {
-            return res.status(404).json({ message: 'Category not found for this question' });
-        }
-
         // Fetch the correct answer from the Answer collection
         const answerRecord = await Answer.findOne({ questionId });
 
@@ -1217,20 +1214,30 @@ exports.submitTypedAnswer = async (req, res) => {
         const correctAnswer = answerRecord.answerText.trim().toLowerCase();
         const isCorrect = correctAnswer === userAnswer.trim().toLowerCase();
 
-        // Calculate the total number of questions for this category
-        const totalQuestions = await Question.countDocuments({ category });
+        // Save the user's answer in the Answer collection
+        const userAnswerRecord = new Answer({
+            userId,
+            questionId,
+            answerText: userAnswer,
+            isCorrect,
+            createdAt: Date.now()
+        });
+        await userAnswerRecord.save();
+
+        // Calculate the total number of questions for this question's category
+        const totalQuestions = await Question.countDocuments({ category: question.category });
 
         // Calculate how many questions the user has answered in this category
         const answeredQuestionsCount = await Answer.countDocuments({
             userId,
-            questionId: { $in: await Question.find({ category }).select('_id') }
+            questionId: { $in: await Question.find({ category: question.category }).select('_id') }
         });
 
         const progress = totalQuestions > 0 ? (answeredQuestionsCount / totalQuestions) * 100 : 0;
 
         // Return the response
         return res.status(200).json({
-            message: 'Answer compared successfully',
+            message: 'Answer submitted successfully',
             correctAnswer: correctAnswer,
             isCorrect,
             totalQuestions,
@@ -1243,6 +1250,7 @@ exports.submitTypedAnswer = async (req, res) => {
         return res.status(500).json({ message: 'Server error', error });
     }
 };
+
 
 
     
