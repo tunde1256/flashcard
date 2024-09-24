@@ -449,20 +449,22 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
             }
         }
 
-        // Save the questionText and answerText directly in the Category model
+        // Create a question object to store in the category
         const questionAnswerObj = {
+            questionId: new mongoose.Types.ObjectId(), // Generate a new question ID
             questionText,
             answerText,
             createdBy: userId,
             createdAt: Date.now()
         };
 
-        // Push the question and answer to the category's questions array
+        // Push the question object into the category's questions array
         categoryData.questions.push(questionAnswerObj);
         await categoryData.save(); // Save the updated category
 
         logger.info('Question and answer created successfully', {
             userId,
+            questionId: questionAnswerObj.questionId,
             questionText,
             answerText,
             categoryId: categoryData._id
@@ -470,6 +472,7 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
 
         return res.status(201).json({
             message: 'Question and answer created successfully',
+            questionId: questionAnswerObj.questionId, // Return the question ID
             questionText,
             answerText,
             category: categoryData
