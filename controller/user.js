@@ -449,22 +449,35 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
             }
         }
 
-        // Create a question object to store in the category
-        const questionAnswerObj = {
-            questionId: new mongoose.Types.ObjectId(), // Generate a new question ID
+        // Create and save the question in the Question model
+        const newQuestion = new Question({
             questionText,
+            category: categoryData._id, // Associate the question with the category
+            createdBy: userId,
+            createdAt: Date.now()
+        });
+
+        // Save the question to the database
+        const savedQuestion = await newQuestion.save();
+
+        // Create the answer object and save it in the Answer model
+        const newAnswer = new Answer({
+            questionId: savedQuestion._id, // Link to the saved question
             answerText,
             createdBy: userId,
             createdAt: Date.now()
-        };
+        });
 
-        // Push the question object into the category's questions array
-        categoryData.questions.push(questionAnswerObj);
+        // Save the answer to the database
+        await newAnswer.save();
+
+        // Push the saved question's ID into the category's questions array
+        categoryData.questions.push(savedQuestion._id);
         await categoryData.save(); // Save the updated category
 
         logger.info('Question and answer created successfully', {
             userId,
-            questionId: questionAnswerObj.questionId,
+            questionId: savedQuestion._id, // Log the actual saved question ID
             questionText,
             answerText,
             categoryId: categoryData._id
@@ -472,10 +485,10 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
 
         return res.status(201).json({
             message: 'Question and answer created successfully',
-            questionId: questionAnswerObj.questionId, // Return the question ID
+            questionId: savedQuestion._id, // Return the saved question ID from the Question model
             questionText,
             answerText,
-            category: categoryData
+            category: categoryData.categoryName // Return category name
         });
 
     } catch (error) {
@@ -483,6 +496,7 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
 
 
 
@@ -1170,14 +1184,14 @@ exports.submitTypedAnswer = async (req, res) => {
             return res.status(400).json({ message: 'Answer is required and must be a string' });
         }
 
-        // Fetch the question from the Question model
-        const question = await Question.findById(questionId).populate('answers'); // Populate answers if needed
+        // Fetch the question from the Question model using the questionId from the request params
+        const question = await Question.findById(questionId);
 
         if (!question) {
             return res.status(404).json({ message: 'Question not found' });
         }
 
-        // Fetch the correct answer from the Answer collection
+        // Fetch the correct answer for the given questionId from the Answer collection
         const answerRecord = await Answer.findOne({ questionId });
 
         if (!answerRecord || !answerRecord.answerText) {
@@ -1198,7 +1212,7 @@ exports.submitTypedAnswer = async (req, res) => {
         });
         await userAnswerRecord.save();
 
-        // Calculate the total number of questions for this question's category
+        // Calculate the total number of questions in the category related to this question
         const totalQuestions = await Question.countDocuments({ category: question.category });
 
         // Calculate how many questions the user has answered in this category
@@ -1220,10 +1234,11 @@ exports.submitTypedAnswer = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error comparing quiz answer:', error);
+        console.error('Error submitting quiz answer:', error);
         return res.status(500).json({ message: 'Server error', error });
     }
 };
+
 
 
 
