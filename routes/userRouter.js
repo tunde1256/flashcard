@@ -32,6 +32,7 @@ router.get("/category1/:categoryName", userController.getQuestionsAndAnswersFrom
 router.delete('/flashcard/:userId/:questionId',userController.deleteFlashcard)
  router.put('/flashcard/:userId/:questionId',userController.updateFlashcard)
 router.post('/logout', userController.logoutUser)
+router.get('/category2/:userId', userController.getUserCreatedCategories)
 
 
 

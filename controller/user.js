@@ -1003,55 +1003,7 @@ exports.updateUser = async(req, res, next) => {
             return res.status(500).json({message: 'Server error'});
         }
     }
-    // exports.getQuizQuestions = async (req, res) => {
-    //     try {
-    //         const { userId, category } = req.params; // Get userId and category from URL parameters
     
-    //         // Check if both userId and category are provided
-    //         if (!userId) {
-    //             return res.status(400).json({ message: 'User ID is required' });
-    //         }
-    
-    //         if (!category) {
-    //             return res.status(400).json({ message: 'Category is required' });
-    //         }
-    
-    //         // Fetch the category with case-insensitive comparison
-    //         const categoryData = await Category.findOne({
-    //             categoryName: { $regex: new RegExp(`^${category}$`, 'i') } // Case-insensitive search
-    //         });
-    
-    //         // Check if category exists
-    //         if (!categoryData) {
-    //             return res.status(404).json({ message: 'Category not found' });
-    //         }
-    
-    //         // Check if category contains questions
-    //         const questions = categoryData.questions;
-    //         if (questions.length === 0) {
-    //             return res.status(404).json({ message: 'No questions available in this category' });
-    //         }
-    
-    //         // Return only questionText and calculate progress
-    //         const totalQuestions = questions.length;
-    //         const answeredQuestions = 0; // For now, assume no answers are submitted
-    //         const progress = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0;
-    
-    //         // Return the questions (only questionText) and progress
-    //         return res.status(200).json({
-    //             message: 'Quiz questions retrieved successfully',
-    //             questions: questions.map(q => ({
-    //                 questionText: q.questionText
-    //             })),
-    //             progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
-    //             totalQuestions,
-    //             answeredQuestions
-    //         });
-    //     } catch (error) {
-    //         console.error('Error fetching quiz questions:', error);
-    //         return res.status(500).json({ message: 'Server error', error });
-    //     }
-    // };
     
     exports.getQuizQuestions = async (req, res) => {
         try {
@@ -1115,6 +1067,28 @@ exports.updateUser = async(req, res, next) => {
     
         } catch (error) {
             console.error('Error fetching quiz questions:', error);
+            return res.status(500).json({ message: 'Server error', error });
+        }
+    };
+    
+    exports.getUserCreatedCategories = async (req, res) => {
+        try {
+            const { userId } = req.params; // Assuming userId is passed as a URL parameter
+    
+            // Find categories created by the user
+            const categories = await Category.find({ createdBy: userId });
+    
+            // Check if there are no categories
+            if (categories.length === 0) {
+                return res.status(404).json([]); // Return an empty array if no categories found
+            }
+    
+            // Extract only category names
+            const categoryNames = categories.map(category => category.categoryName);
+    
+            return res.status(200).json(categoryNames); // Return only the category names as an array
+        } catch (error) {
+            console.error('Error retrieving categories', error);
             return res.status(500).json({ message: 'Server error', error });
         }
     };
