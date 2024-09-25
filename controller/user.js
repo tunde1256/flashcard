@@ -469,15 +469,24 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
         });
 
         // Save the answer to the database
-        await newAnswer.save();
+        const savedAnswer = await newAnswer.save();
 
-        // Push the saved question's ID into the category's questions array
-        categoryData.questions.push(savedQuestion._id);
+        // Save the question text and answer text directly into the category model
+        categoryData.questions.push({
+            questionText,
+            answerText,
+            createdBy: userId,
+            questionId: savedQuestion._id,  // Optionally reference the Question model
+            answerId: savedAnswer._id,  // Optionally reference the Answer model
+            createdAt: Date.now()
+        });
+        
         await categoryData.save(); // Save the updated category
 
         logger.info('Question and answer created successfully', {
             userId,
             questionId: savedQuestion._id, // Log the actual saved question ID
+            answerId: savedAnswer._id, // Log the saved answer ID
             questionText,
             answerText,
             categoryId: categoryData._id
@@ -485,10 +494,11 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
 
         return res.status(201).json({
             message: 'Question and answer created successfully',
-            questionId: savedQuestion._id, // Return the saved question ID from the Question model
+            questionId: savedQuestion._id, // Return the saved question ID
+            answerId: savedAnswer._id, // Return the saved answer ID
             questionText,
             answerText,
-            category: categoryData.categoryName // Return category name
+            category: categoryData.categoryName // Return the category name
         });
 
     } catch (error) {
