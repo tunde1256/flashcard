@@ -1028,7 +1028,6 @@ exports.updateUser = async(req, res, next) => {
         }
     }
     
-    
     exports.getQuizQuestions = async (req, res) => {
         try {
             const { userId, category } = req.params;
@@ -1050,7 +1049,7 @@ exports.updateUser = async(req, res, next) => {
             // Fetch the category and its questions directly
             const categoryData = await Category.findOne({
                 categoryName: { $regex: new RegExp(`^${category}$`, 'i') }
-            });
+            }).populate('questions'); // Populate the questions with their full data
     
             if (!categoryData) {
                 return res.status(404).json({ message: 'Category not found' });
@@ -1074,15 +1073,20 @@ exports.updateUser = async(req, res, next) => {
             // Get the current question based on the index
             const currentQuestion = questions[questionIndex];
     
+            // Check if `answerText` exists in the current question
+            const answerText = currentQuestion.answerText || 'Answer not available';
+    
             // Calculate progress
             const answeredQuestions = questionIndex + 1; // Add 1 to include the current question
             const progress = (answeredQuestions / totalQuestions) * 100;
     
+            // Return the response including the answerText directly from the question
             return res.status(200).json({
                 message: 'Next question retrieved successfully',
                 question: {
                     questionText: currentQuestion.questionText,
-                    questionId: currentQuestion.questionId // Ensure the ID is returned
+                    questionId: currentQuestion._id, // Fetch question ID from the Question model
+                    answerText: answerText // Include the answer text from the question
                 },
                 progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
                 totalQuestions,
@@ -1094,6 +1098,11 @@ exports.updateUser = async(req, res, next) => {
             return res.status(500).json({ message: 'Server error', error });
         }
     };
+    
+    
+    
+    
+    
     
     exports.getUserCreatedCategories = async (req, res) => {
         try {
