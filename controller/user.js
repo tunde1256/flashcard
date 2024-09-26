@@ -1027,7 +1027,6 @@ exports.updateUser = async(req, res, next) => {
             return res.status(500).json({message: 'Server error'});
         }
     }
-    
     exports.getQuizQuestions = async (req, res) => {
         try {
             const { userId, category } = req.params;
@@ -1073,8 +1072,14 @@ exports.updateUser = async(req, res, next) => {
             // Get the current question based on the index
             const currentQuestion = questions[questionIndex];
     
-            // Check if `answerText` exists in the current question
+            // Ensure that currentQuestion exists
+            if (!currentQuestion) {
+                return res.status(404).json({ message: 'Current question not found' });
+            }
+    
+            // Extract answerText and questionId
             const answerText = currentQuestion.answerText || 'Answer not available';
+            const questionId = currentQuestion.questionId; // Correctly fetch the questionId from the question object
     
             // Calculate progress
             const answeredQuestions = questionIndex + 1; // Add 1 to include the current question
@@ -1085,7 +1090,7 @@ exports.updateUser = async(req, res, next) => {
                 message: 'Next question retrieved successfully',
                 question: {
                     questionText: currentQuestion.questionText,
-                    questionId: currentQuestion._id, // Fetch question ID from the Question model
+                    questionId: questionId, // This should now correctly reference the questionId from the category model
                     answerText: answerText // Include the answer text from the question
                 },
                 progress: `${progress.toFixed(2)}%`, // Return progress as a percentage
@@ -1098,6 +1103,9 @@ exports.updateUser = async(req, res, next) => {
             return res.status(500).json({ message: 'Server error', error });
         }
     };
+    
+    
+    
     
     
     
