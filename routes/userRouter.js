@@ -33,6 +33,8 @@ router.delete('/flashcard/:userId/:questionId',userController.deleteFlashcard)
  router.put('/flashcard/:userId/:questionId',userController.updateFlashcard)
 router.post('/logout', userController.logoutUser)
 router.get('/category2/:userId', userController.getUserCreatedCategories)
+// Route: DELETE /categories/:categoryName
+router.delete('/category2/:categoryName', userController.deleteCategories);
 
 
 

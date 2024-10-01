@@ -1445,9 +1445,33 @@ exports.checkBlacklist = (req, res, next) => {
 
 
 
+exports.deleteCategories = async (req, res) => {
+    try {
+        const categoryName  = req.params; // Extract categoryName from request params
 
+        // Validate that categoryName is provided
+        if (!categoryName) {
+            return res.status(400).json({ message: 'Category name is required' });
+        }
 
+        // Create filter based on categoryName
+        const filter = categoryName; // Ensure we only filter by categoryName
 
+        // Find the category using the filter
+        const category = await Category.findOne(filter);
 
+        if (!category) {
+            return res.status(404).json({ message: `No category found with name "${categoryName}"` });
+        }
 
+        // Delete the category
+        await Category.deleteOne(filter);
+
+        return res.status(200).json({ message: `Category with name "${categoryName}" deleted successfully` });
+
+    } catch (error) {
+        console.error('Error deleting category:', error.message);
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
 
