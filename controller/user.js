@@ -1445,23 +1445,35 @@ exports.checkBlacklist = (req, res, next) => {
 
 
 
+
+
+
 exports.deleteCategories = async (req, res) => {
     try {
-        const categoryName  = req.params; // Extract categoryName from request params
+        const { categoryName, userId } = req.params; // Extract categoryName and userId from request params
 
-        // Validate that categoryName is provided
+        // Validate that categoryName and userId are provided
         if (!categoryName) {
             return res.status(400).json({ message: 'Category name is required' });
         }
+        if (!userId) {
+            return res.status(400).json({ message: 'User ID is required' });
+        }
 
-        // Create filter based on categoryName
-        const filter = categoryName; // Ensure we only filter by categoryName
+        // Create filter based on categoryName and userId
+        const filter = { 
+            categoryName: { $regex: new RegExp(categoryName, 'i') },  // Case-insensitive match
+            createdBy: new mongoose.Types.ObjectId(userId) 
+        };
+
+        console.log("Filter used for query:", filter);
 
         // Find the category using the filter
         const category = await Category.findOne(filter);
+        console.log("Category found:", category);
 
         if (!category) {
-            return res.status(404).json({ message: `No category found with name "${categoryName}"` });
+            return res.status(404).json({ message: `No category found with name "${categoryName}" created by this user` });
         }
 
         // Delete the category
@@ -1474,4 +1486,3 @@ exports.deleteCategories = async (req, res) => {
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
-
