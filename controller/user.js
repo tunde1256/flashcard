@@ -545,6 +545,8 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
             });
             await categoryData.save();
             logger.info('New category created', { categoryData });
+        } else {
+            logger.info('Using existing category', { categoryId: categoryData._id });
         }
 
         // Create and save the question in the Question model
