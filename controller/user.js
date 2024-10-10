@@ -404,6 +404,108 @@ exports.createQuestionAndAnswer = async (req, res) => {
 
 
 // POST /api/user/create-question-answer
+// exports.createQuestionAndAnswer2 = async (req, res) => {
+//     try {
+//         const { userId } = req.params; // Get userId from URL params
+//         const { questionText, answerText, category } = req.body;
+
+//         // Validate input
+//         if (!userId || !questionText || !answerText || !category) {
+//             logger.warn('Missing required fields', { userId, questionText, answerText, category });
+//             return res.status(400).json({ message: 'User ID, question text, answer text, and category are required' });
+//         }
+
+//         // Log the userId for debugging
+//         logger.info('Received userId from params:', { userId });
+
+//         // Check if the user exists
+//         const user = await User.findById(userId);
+//         if (!user) {
+//             logger.warn('User not found', { userId });
+//             return res.status(404).json({ message: 'User not found' });
+//         }
+
+//         logger.info('User ID used for creating category', { userId });
+
+//         // Check if the category exists or create a new one
+//         let categoryData = await Category.findOne({ categoryName: { $regex: new RegExp(`^${category}$`, 'i') } });
+
+//         // If category doesn't exist, create it
+//         if (!categoryData) {
+//             logger.info('Creating new category', { category, createdBy: userId });
+//             categoryData = new Category({
+//                 categoryName: category,
+//                 createdBy: userId, // Ensure createdBy is set
+//                 questions: [] // Initialize questions array
+//             });
+//             await categoryData.save();
+//             logger.info('New category created', { categoryData });
+//         } else {
+//             // If category exists, check if createdBy is set, and update it if necessary
+//             if (!categoryData.createdBy) {
+//                 categoryData.createdBy = userId;
+//                 await categoryData.save();
+//                 logger.info('Added createdBy field to existing category', { categoryData });
+//             }
+//         }
+
+//         // Create and save the question in the Question model
+//         const newQuestion = new Question({
+//             questionText,
+//             category: categoryData._id, // Associate the question with the category
+//             createdBy: userId,
+//             createdAt: Date.now()
+//         });
+
+//         // Save the question to the database
+//         const savedQuestion = await newQuestion.save();
+
+//         // Create the answer object and save it in the Answer model
+//         const newAnswer = new Answer({
+//             questionId: savedQuestion._id, // Link to the saved question
+//             answerText,
+//             createdBy: userId,
+//             createdAt: Date.now()
+//         });
+
+//         // Save the answer to the database
+//         const savedAnswer = await newAnswer.save();
+
+//         // Save the question text and answer text directly into the category model
+//         categoryData.questions.push({
+//             questionText,
+//             answerText,
+//             createdBy: userId,
+//             questionId: savedQuestion._id,  // Optionally reference the Question model
+//             answerId: savedAnswer._id,  // Optionally reference the Answer model
+//             createdAt: Date.now()
+//         });
+        
+//         await categoryData.save(); // Save the updated category
+
+//         logger.info('Question and answer created successfully', {
+//             userId,
+//             questionId: savedQuestion._id, // Log the actual saved question ID
+//             answerId: savedAnswer._id, // Log the saved answer ID
+//             questionText,
+//             answerText,
+//             categoryId: categoryData._id
+//         });
+
+//         return res.status(201).json({
+//             message: 'Question and answer created successfully',
+//             questionId: savedQuestion._id, // Return the saved question ID
+//             answerId: savedAnswer._id, // Return the saved answer ID
+//             questionText,
+//             answerText,
+//             category: categoryData.categoryName // Return the category name
+//         });
+
+//     } catch (error) {
+//         logger.error('Error creating question and answer', { error: error.message, stack: error.stack });
+//         return res.status(500).json({ message: 'Server error', error: error.message });
+//     }
+// };
 exports.createQuestionAndAnswer2 = async (req, res) => {
     try {
         const { userId } = req.params; // Get userId from URL params
@@ -427,26 +529,22 @@ exports.createQuestionAndAnswer2 = async (req, res) => {
 
         logger.info('User ID used for creating category', { userId });
 
-        // Check if the category exists or create a new one
-        let categoryData = await Category.findOne({ categoryName: { $regex: new RegExp(`^${category}$`, 'i') } });
+        // Check if the category exists for the specific user
+        let categoryData = await Category.findOne({ 
+            categoryName: { $regex: new RegExp(`^${category}$`, 'i') }, 
+            createdBy: userId // Ensure the category lookup is user-specific
+        });
 
         // If category doesn't exist, create it
         if (!categoryData) {
             logger.info('Creating new category', { category, createdBy: userId });
             categoryData = new Category({
                 categoryName: category,
-                createdBy: userId, // Ensure createdBy is set
+                createdBy: userId, // Ensure createdBy is set to the specific user
                 questions: [] // Initialize questions array
             });
             await categoryData.save();
             logger.info('New category created', { categoryData });
-        } else {
-            // If category exists, check if createdBy is set, and update it if necessary
-            if (!categoryData.createdBy) {
-                categoryData.createdBy = userId;
-                await categoryData.save();
-                logger.info('Added createdBy field to existing category', { categoryData });
-            }
         }
 
         // Create and save the question in the Question model
